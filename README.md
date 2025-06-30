@@ -61,9 +61,6 @@ onboarding-app/
 │   │   │   ├── EmployeeStatusChangeForm.jsx
 │   │   │   └── ...
 │   │   └── assets/         # Images, icons, etc.
-│   │   └── styles/         # CSS files
-│   │       ├── DashboardPage.css
-│   │       ├── EmployeeStatusChangeForm.css
 │   │       └── ...
 │   ├── package.json        # Node.js dependencies
 │   ├── .env.development    # Local environment variables
@@ -141,7 +138,7 @@ Before you begin, ensure you have the following installed:
 3.  **Set up environment variables:**
     Create a `.env.development` file in the `frontend/` directory. This is where you'll define variables like the backend API URL.
     ```
-    # Example .env.development for React frontend
+    # Example .env.development for React frontend sample
     REACT_APP_API_URL=[http://127.0.0.1:5000/api](http://127.0.0.1:5000/api)
     ```
     *(Note: React requires variables to be prefixed with `REACT_APP_`)*
