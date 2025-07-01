@@ -1,0 +1,171 @@
+/* src/LoginForm.css */
+
+/* Use variables defined in your global CSS (e.g., index.css) if available */
+/* Otherwise, define them here or use direct color values */
+
+/* Example basic colors if not using global variables */
+/*
+:root {
+    --login-bg-color: rgba(0, 0, 0, 0.7);
+    --login-text-color: #e0e0e0;
+    --login-input-bg: rgba(255, 255, 255, 0.1);
+    --login-input-border: #8b5cf6;
+    --login-button-bg: #8b5cf6;
+    --login-button-text: #ffffff;
+    --login-link-color: #a78bfa;
+}
+*/
+
+
+.wrapper {
+    /* Styles for the main container of your login form */
+    width: 400px; /* Adjust as needed */
+    background: rgba(230, 230, 230, 0.263); /* Semi-transparent dark background */
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    padding: 30px 40px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+    color: #fff; /* Text color for the form content */
+    text-align: center;
+    backdrop-filter: blur(8px); /* Apply blur directly here */
+    -webkit-backdrop-filter: blur(8px);
+    position: absolute; /* Position it on top of the background */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Center horizontally and vertically */
+    z-index: 2; /* Ensure it's above the background image */
+}
+
+.guardianlogo {
+    width: 180px; /* Adjust size as needed based on your logo */
+    height: auto;
+    margin-bottom: 20px;
+    display: block; /* Ensures margin auto centers it */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.wrapper h1 { /* If you add an H1 back */
+    font-size: 2em;
+    color: #fff;
+    margin-bottom: 20px;
+}
+
+.input-box {
+    position: relative;
+    width: 100%;
+    height: 50px;
+    margin: 30px 0;
+}
+
+.input-box input {
+    width: calc(100% - 50px); /* Account for padding and icon */
+    height: 100%;
+    background: rgba(255, 255, 255, 0.1); /* Semi-transparent input background */
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    outline: none;
+    border-radius: 40px;
+    font-size: 1em;
+    color: #fff; /* Input text color */
+    padding: 0 20px 0 20px;
+    transition: border-color 0.3s ease;
+}
+
+.input-box input::placeholder {
+    color: rgba(255, 255, 255, 0.7); /* Placeholder text color */
+}
+
+.input-box input:focus {
+    border-color: #8b5cf6; /* Highlight border on focus */
+}
+
+.input-box .icon {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.2em;
+    color: #fff; /* Icon color */
+}
+
+.remember-forgot { /* If you implement remember me checkbox */
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+    margin: -15px 0 15px;
+}
+
+.remember-forgot label input {
+    accent-color: #fff;
+    margin-right: 3px;
+}
+
+.remember-forgot a {
+    color: #fff;
+    text-decoration: none;
+}
+
+.remember-forgot a:hover {
+    text-decoration: underline;
+}
+
+.wrapper button {
+    width: 100%;
+    height: 45px;
+    background: #8b5cf6; /* Example button color (purple) */
+    border: none;
+    outline: none;
+    border-radius: 40px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    font-size: 1em;
+    color: #fff; /* Button text color */
+    font-weight: 700;
+    transition: background-color 0.3s ease;
+}
+
+.wrapper button:hover {
+    background-color: #a78bfa; /* Lighter purple on hover */
+}
+
+.register-link {
+    font-size: 0.9em;
+    color: #fff;
+    margin-top: 20px;
+    text-align: center;
+}
+
+.register-link p a {
+    color: #a78bfa; /* Link color */
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.register-link p a:hover {
+    text-decoration: underline;
+}
+
+/* Global body background - place this in index.css or App.css */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif; /* Simpler fallback */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #1a1a2e; /* Fallback dark background */
+    background: url('../Assets/img/ChatGPT\ Image\ May\ 29\,\ 2025\,\ 02_30_26\ PM.png') no-repeat center center fixed; /* Adjust path as needed */
+    background-size: cover;
+    color: #e0e0e0;
+    display: flex; /* To help center the login form if it's the only content */
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden; /* Prevent scrollbars if background is fixed */
+}
+
+/* Consider a div wrapping your entire application if body isn't the direct parent */
+/* .app-container {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+} */

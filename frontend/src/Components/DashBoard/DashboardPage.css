@@ -1,0 +1,533 @@
+/* src/DashboardPage.css */
+
+/* 1. Essential Global Resets for Full Page Height */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden; /* Prevents horizontal scroll */
+  box-sizing: border-box; /* Includes padding and border in element's total width and height */
+}
+
+*, *::before, *::after {
+  box-sizing: inherit; /* Inherit box-sizing for all elements */
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f0f2f5;
+  min-height: 100vh; /* Ensures body takes at least full viewport height */
+}
+
+/* 2. Main Page Layout (renamed from dashboard-container for clarity based on JSX) */
+.main-page-layout { /* Matches the div in DashboardPage.jsx */
+  display: flex; /* Establishes flex context for sidebar and main content */
+  min-height: 100vh; /* Ensures it's at least viewport height */
+  background-color: #f0f2f5; /* Background for the entire page container */
+  flex-grow: 1; /* Allows it to grow and fill available space in the body */
+  width: 100%; /* Takes the full width of its parent */
+}
+
+/* Remainder of your DashboardPage.css styles follow here */
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background-color: #ffffff;
+  padding: 20px;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 0 15px 15px 0; /* Rounded right corners */
+  /* If sidebar content could exceed 100vh, add: */
+  /* overflow-y: auto; */
+}
+
+.sidebar-logo img {
+  max-width: 180px; /* Adjust as needed */
+  height: auto;
+  margin-bottom: 30px;
+}
+
+.user-profile {
+  text-align: center;
+  margin-bottom: 40px;
+  color: #555;
+}
+
+.profile-avatar {
+  font-size: 60px; /* Size for the user icon */
+  color: #007bff; /* Blue color for avatar */
+  margin-bottom: 10px;
+}
+
+.user-name {
+  font-weight: bold;
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.user-role {
+  font-size: 0.9em;
+  color: #777;
+  margin: 0;
+}
+
+.sidebar-nav {
+  width: 100%;
+}
+
+.sidebar-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar-nav li {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  color: #555;
+  font-weight: 500;
+}
+
+.sidebar-nav li:hover {
+  background-color: #e9f5ff;
+  color: #007bff;
+}
+
+.sidebar-nav li.active {
+  background-color: #e9f5ff; /* Light blue for active */
+  color: #007bff; /* Blue text for active */
+  font-weight: bold;
+}
+
+.sidebar-nav .nav-icon {
+  margin-right: 15px;
+  font-size: 1.2em;
+}
+
+/* Main Content Area */
+.main-content {
+  flex-grow: 1;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+/* Main Header */
+.main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.main-header h2 {
+  margin: 0;
+  font-size: 1.8em;
+  font-weight: 600;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.requested-form {
+  font-size: 0.9em;
+  color: #007bff;
+  font-weight: 500;
+  text-decoration: none; /* Add this if it's a link */
+}
+
+/* Ensure the FaUserCircle icon gets the same styling */
+.profile-avatar { /* Use this class directly for FaUserCircle */
+  font-size: 40px; /* Adjust as needed */
+  color: #007bff;
+}
+
+
+/* Info Cards Section */
+.info-cards-section {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  justify-content: space-between; /* Distribute space */
+}
+
+.info-card {
+  background-color: #ffffff;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  flex: 1; /* Allow cards to grow */
+  min-width: 300px; /* Minimum width before wrapping */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative; /* For chart placeholder positioning */
+  overflow: hidden; /* Hide overflow for rounded corners */
+}
+
+.info-card h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #333;
+}
+
+.card-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 15px;
+}
+
+.card-item {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.card-item .label {
+  font-size: 0.9em;
+  color: #777;
+  margin-bottom: 5px;
+}
+
+.card-item .value {
+  font-size: 2.5em; /* Larger font for numbers */
+  font-weight: bold;
+  color: #333;
+}
+
+/* Chart Placeholders within Info Cards */
+.chart-placeholder {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 80px; /* Height of the small chart area */
+  opacity: 0.7;
+  border-radius: 0 0 15px 15px; /* Rounded bottom corners */
+}
+
+.submissions-card .chart-placeholder {
+  background: linear-gradient(to top, #ff7e7e, #ffb3b3); /* Red gradient */
+}
+
+.tasks-card .chart-placeholder {
+  background: linear-gradient(to top, #66b3ff, #a3d9ff); /* Blue gradient */
+}
+
+/* Specific card colors for text */
+.submissions-card .value {
+  color: #e74c3c; /* Red for submissions values */
+}
+.tasks-card .value {
+  color: #3498db; /* Blue for tasks values */
+}
+
+/* Bottom Charts Section */
+.charts-section {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.chart-container {
+  background-color: #ffffff;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  flex: 1;
+  min-width: 400px; /* Adjust min-width for charts */
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-container h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Bar Chart Placeholder - Alignment Fixes */
+.bar-chart-placeholder {
+  display: flex;
+  align-items: flex-end; /* Bars grow upwards from the bottom */
+  justify-content: space-around; /* Distribute space around items */
+  height: 200px; /* Fixed height for the chart area */
+  border-left: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+  /* Removed individual bar width and padding from here */
+  /* Using gap for spacing */
+  gap: 8px; /* Consistent spacing between bars */
+  padding: 0 5px; /* Small horizontal padding inside the chart area */
+  position: relative; /* For absolute positioning of bar values */
+}
+
+.bar-chart-bar {
+  flex-grow: 1; /* Bars grow to fill available space equally */
+  flex-basis: 0; /* Ensures flex-grow works correctly by setting initial size to 0 */
+  background-color: #6a1b9b; /* Example bar color */
+  border-radius: 3px 3px 0 0; /* Rounded top corners */
+  position: relative; /* For the bar value span */
+  transition: height 0.5s ease-out; /* Smooth height transition */
+  display: flex; /* For centering text vertically */
+  align-items: flex-start; /* To position text at the top of the bar */
+  justify-content: center; /* To center text horizontally */
+}
+
+.bar-chart-bar .bar-value {
+  position: absolute;
+  top: -20px; /* Position above the bar */
+  font-size: 0.7em;
+  color: #555;
+  font-weight: bold;
+  text-align: center;
+  width: 100%; /* Ensure text takes full width of the bar for centering */
+}
+
+.x-axis-labels {
+  display: flex;
+  /* CRITICAL: Mirror the same flex properties as .bar-chart-placeholder */
+  justify-content: space-around; /* Distribute space around labels */
+  font-size: 0.8em;
+  color: #777;
+  padding-top: 5px;
+  /* Match the horizontal padding of bar-chart-placeholder */
+  padding: 0 5px;
+  gap: 8px; /* Match the gap of bar-chart-placeholder */
+}
+
+.x-axis-label-item { /* Specific class for these spans */
+  flex: 1; /* Ensures labels spread out evenly */
+  flex-basis: 0; /* Pair with flex:1 for better flex item distribution */
+  text-align: center;
+}
+
+
+/* Pie Chart Placeholder */
+.pie-chart-placeholder {
+  display: flex;
+  flex-direction: column; /* Changed to column for better responsiveness on small screens */
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  gap: 20px;
+}
+
+.pie-chart-circle {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background-color: #007bff; /* Main color for the "pie" */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.pie-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  font-size: 0.9em;
+  color: #555;
+}
+
+.legend-color {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+.legend-color.open { background-color: #007bff; } /* Blue */
+.legend-color.completed { background-color: #28a745; } /* Green */
+.legend-color.in-progress { background-color: #ffc107; } /* Yellow */
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .main-page-layout {
+    flex-direction: column; /* Stack sidebar and main content vertically */
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    border-radius: 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    padding-bottom: 0;
+    order: 2; /* Place sidebar at the bottom for mobile */
+  }
+
+  .sidebar-nav ul {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+  }
+
+  .sidebar-nav li {
+    flex-direction: column;
+    padding: 10px 5px;
+    text-align: center;
+    margin-bottom: 0;
+  }
+
+  .sidebar-nav .nav-icon {
+    margin-right: 0;
+    margin-bottom: 5px;
+  }
+
+  .user-profile, .sidebar-logo {
+    display: none; /* Hide profile and logo on small screens if space is tight */
+  }
+
+  .main-content {
+    order: 1; /* Place main content at the top for mobile */
+    padding: 20px; /* Reduce padding on small screens */
+    gap: 20px; /* Reduce gap between sections */
+  }
+
+  .info-cards-section, .charts-section {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .info-card, .chart-container {
+    min-width: unset; /* Remove min-width constraint */
+    width: 100%; /* Take full width */
+  }
+
+  .main-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .pie-chart-placeholder {
+    flex-direction: column; /* Ensure pie chart content stacks vertically */
+  }
+}
+
+/* Optional: Very small screen adjustments (e.g., for very narrow phones) */
+@media (max-width: 480px) {
+  .info-card, .chart-container {
+    padding: 15px; /* Even smaller padding */
+  }
+  .main-content {
+    padding: 15px;
+  }
+}
+/* src/DashboardPage.css */
+
+/* Container for the table */
+.search-results-table-container {
+    margin-top: 20px;
+    /* Optional: Add background, padding, border-radius similar to other cards */
+    background-color: var(--card-bg-color, #ffffff);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-small, 0 2px 4px rgba(0,0,0,0.1));
+    overflow-x: auto; /* Ensures table is scrollable on small screens */
+}
+
+/* Style for the table itself */
+.employee-search-table {
+    width: 100%;
+    border-collapse: collapse; /* Removes double borders */
+    margin-top: 15px;
+    font-size: 0.95em; /* Slightly smaller font for table content */
+}
+
+/* Table Headers */
+.employee-search-table th {
+    background-color: var(--table-header-bg, #007bff); /* A nice blue or your primary color */
+    color: white;
+    padding: 12px 15px;
+    text-align: left;
+    font-weight: bold;
+    /* Apply border-radius to the top corners of the header */
+    border-bottom: 2px solid var(--primary-color-dark, #0056b3); /* Darker border for separation */
+}
+
+.employee-search-table th:first-child {
+    border-top-left-radius: 8px;
+}
+.employee-search-table th:last-child {
+    border-top-right-radius: 8px;
+}
+
+
+/* Table Cells */
+.employee-search-table td {
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+    color: var(--text-color, #555);
+}
+
+/* Clickable Rows */
+.employee-search-table tbody tr.clickable-row {
+    cursor: pointer; /* Indicates it's clickable */
+    transition: background-color 0.2s ease; /* Smooth transition on hover */
+}
+
+.employee-search-table tbody tr.clickable-row:hover {
+    background-color: var(--hover-color, #f0f8ff); /* Light blue or light gray on hover */
+    filter: brightness(98%); /* Subtle brightness change on hover */
+}
+
+/* Remove bottom border from the last row */
+.employee-search-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Optional: Style for the hint text below the table */
+.table-hint {
+    font-size: 0.85em;
+    color: #888;
+    text-align: center;
+    padding-top: 10px;
+}
+
+/* Ensure these CSS variables are defined in your main stylesheet or :root, e.g.: */
+/*
+:root {
+    --primary-color: #4CAF50;
+    --primary-color-dark: #45a049;
+    --background-color: #f0f2f5;
+    --main-content-bg: #ffffff;
+    --card-bg-color: #ffffff;
+    --text-color: #555;
+    --text-color-dark: #333;
+    --icon-color: #666;
+    --border-color: #e0e0e0;
+    --shadow-small: 0 2px 4px rgba(0,0,0,0.1);
+    --shadow-medium: 0 4px 8px rgba(0,0,0,0.1);
+    --table-header-bg: #007bff;
+    --hover-color: #f5f5f5;
+}
+*/

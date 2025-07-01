@@ -1,0 +1,388 @@
+/* src/SubmissionsPage.css */
+
+/* Global Resets (Copy from DashboardPage.css for consistency) */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  
+  *, *::before, *::after {
+    box-sizing: inherit;
+  }
+  
+  body {
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f0f2f5;
+    min-height: 100vh;
+  }
+  
+  /* Submissions Container (Similar to dashboard-container) */
+  .submissions-container {
+    display: flex; /* Establishes flex context for sidebar and main content */
+    min-height: 100vh; /* Ensures it's at least viewport height */
+    background-color: #f0f2f5; /* Background for the entire page container */
+    flex-grow: 1; /* Allows it to grow and fill available space in the body */
+    width: 100%; /* Takes the full width of its parent */
+  }
+  
+  /* Sidebar (Copied for now, consider making a reusable component) */
+  .sidebar {
+    width: 250px;
+    background-color: #ffffff;
+    padding: 20px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 0 15px 15px 0;
+  }
+  
+  .sidebar-logo img {
+    max-width: 180px;
+    height: auto;
+    margin-bottom: 30px;
+  }
+  
+  .user-profile {
+    text-align: center;
+    margin-bottom: 40px;
+    color: #555;
+  }
+  
+  .profile-avatar {
+    font-size: 60px;
+    color: #007bff;
+    margin-bottom: 10px;
+  }
+  
+  .user-name {
+    font-weight: bold;
+    margin: 0;
+    font-size: 1.1em;
+  }
+  
+  .user-role {
+    font-size: 0.9em;
+    color: #777;
+    margin: 0;
+  }
+  
+  .sidebar-nav {
+    width: 100%;
+  }
+  
+  .sidebar-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .sidebar-nav li {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    color: #555;
+    font-weight: 500;
+  }
+  
+  .sidebar-nav li:hover {
+    background-color: #e9f5ff;
+    color: #007bff;
+  }
+  
+  .sidebar-nav li.active {
+    background-color: #e9f5ff;
+    color: #007bff;
+    font-weight: bold;
+  }
+  
+  .sidebar-nav .nav-icon {
+    margin-right: 15px;
+    font-size: 1.2em;
+  }
+  
+  /* Main Content Area (Copied for now) */
+  .main-page-layout { /* A new general class for the container */
+    display: flex;
+    background-color: #f0f2f5;
+    flex-grow: 1;
+    width: 100vw;
+    height: 100vh;
+  }
+  
+  .main-content {
+    flex-grow: 1;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+  }
+  
+  /* Main Header (Copied for now) */
+  .main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    color: #333;
+  }
+  
+  .main-header h2 {
+    margin: 0;
+    font-size: 1.8em;
+    font-weight: 600;
+  }
+  
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .requested-form {
+    font-size: 0.9em;
+    color: #007bff;
+    font-weight: 500;
+  }
+  
+  .user-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    background-color: #ccc;
+    border-radius: 50%;
+    border: 2px solid #007bff;
+  }
+  
+  /* Submissions Table Section */
+  .submissions-table-section {
+    background-color: #ffffff;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .table-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .filter-input {
+    flex: 1; /* Allows inputs to grow */
+    min-width: 150px; /* Minimum width for inputs */
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9em;
+    color: #555;
+  }
+  
+  .filter-input::placeholder {
+    color: #aaa;
+  }
+  
+  .action-header {
+    font-weight: bold;
+    color: #333;
+    /* Adjust width to align with table column if needed */
+    width: 50px; /* Example width, adjust as per your table's action column */
+    text-align: center;
+  }
+  
+  .submissions-table {
+    overflow-x: auto; /* Allows table to scroll horizontally on small screens */
+  }
+  
+  .submissions-table table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+  
+  .submissions-table th,
+  .submissions-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    white-space: nowrap; /* Prevent text wrapping in cells */
+  }
+  
+  .submissions-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+    text-transform: uppercase;
+    font-size: 0.85em;
+  }
+  
+  .submissions-table td {
+    color: #555;
+    font-size: 0.9em;
+  }
+  
+  .submissions-table tbody tr:hover {
+    background-color: #f0f2f5;
+  }
+  
+  /* User Type Tags */
+  .user-type-tag {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  .user-type-tag.field-employee {
+    background-color: #e6ffe6; /* Light green */
+    color: #28a745; /* Dark green */
+  }
+  
+  .user-type-tag.admin {
+    background-color: #ffe6e6; /* Light red */
+    color: #dc3545; /* Dark red */
+  }
+  
+  /* Edit Button */
+  .edit-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #007bff;
+    padding: 5px;
+    border-radius: 5px;
+    transition: background-color 0.2s ease;
+    display: flex; /* To center icon */
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .edit-button:hover {
+    background-color: #e9f5ff;
+  }
+  
+  /* Pagination */
+  .table-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9em;
+    color: #555;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+  }
+  
+  .rows-per-page select {
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    margin-left: 10px;
+    background-color: #fff;
+  }
+  
+  .pagination-controls button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-left: 8px;
+    transition: background-color 0.2s ease;
+  }
+  
+  .pagination-controls button:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Responsive Adjustments (Copy from DashboardPage.css for consistency) */
+  @media (max-width: 768px) {
+    .sidebar {
+      width: 100%;
+      height: auto;
+      border-radius: 0;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      padding-bottom: 0;
+    }
+  
+    .sidebar-nav ul {
+      display: flex;
+      justify-content: space-around;
+      width: 100%;
+    }
+  
+    .sidebar-nav li {
+      flex-direction: column;
+      padding: 10px 5px;
+      text-align: center;
+      margin-bottom: 0;
+    }
+  
+    .sidebar-nav .nav-icon {
+      margin-right: 0;
+      margin-bottom: 5px;
+    }
+  
+    .user-profile, .sidebar-logo {
+      display: none;
+    }
+  
+    .submissions-container {
+      flex-direction: column;
+    }
+  
+    .main-content {
+      padding: 15px;
+    }
+  
+    .table-filters {
+      flex-direction: column;
+      gap: 10px;
+      align-items: stretch;
+    }
+  
+    .filter-input {
+      width: 100%;
+    }
+  
+    .action-header {
+      width: 100%;
+      text-align: left;
+    }
+  
+    .main-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+  
+    .header-right {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  
+    .table-pagination {
+      flex-direction: column;
+      gap: 10px;
+    }
+  
+    .pagination-controls button {
+      margin-left: 0;
+      margin-right: 8px;
+    }
+  }

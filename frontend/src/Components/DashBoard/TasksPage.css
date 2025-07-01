@@ -1,0 +1,173 @@
+/* src/TasksPage.css */
+
+/* Tasks Table Section */
+.tasks-table-section {
+  background-color: #ffffff;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.filter-input {
+  flex: 1; /* Allows inputs to grow */
+  min-width: 120px; /* Adjust minimum width for inputs */
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9em;
+  color: #555;
+}
+
+.filter-input::placeholder {
+  color: #aaa;
+}
+
+.action-header {
+  font-weight: bold;
+  color: #333;
+  width: 50px; /* Example width, adjust as per your table's action column */
+  text-align: center;
+}
+
+.tasks-table {
+  overflow-x: auto; /* Allows table to scroll horizontally on small screens */
+}
+
+.tasks-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.tasks-table th,
+.tasks-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap; /* Prevent text wrapping in cells */
+}
+
+.tasks-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+  text-transform: uppercase;
+  font-size: 0.85em;
+}
+
+.tasks-table td {
+  color: #555;
+  font-size: 0.9em;
+}
+
+.tasks-table tbody tr:hover {
+  background-color: #f0f2f5;
+}
+
+/* Status Tags (Similar to User Type Tags) */
+.status-tag {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 0.8em;
+  font-weight: bold;
+  text-align: center;
+}
+
+.status-tag.open {
+  background-color: #fff3e0; /* Light orange/yellow */
+  color: #ff9800; /* Darker orange/yellow */
+}
+/* Add other status colors if you have them (e.g., .status-tag.completed, .status-tag.in-progress) */
+
+
+/* Edit Button (Reused style, ensure it's in a common CSS or copied) */
+.edit-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #007bff;
+  padding: 5px;
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-button:hover {
+  background-color: #e9f5ff;
+}
+
+/* Pagination (Reused style, ensure it's in a common CSS or copied) */
+.table-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9em;
+  color: #555;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.rows-per-page select {
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  margin-left: 10px;
+  background-color: #fff;
+}
+
+.pagination-controls button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.pagination-controls button:hover {
+  background-color: #0056b3;
+}
+
+/* Responsive Adjustments (Add specific adjustments for this page if needed) */
+@media (max-width: 768px) {
+  .table-filters {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .filter-input {
+    width: 100%;
+  }
+
+  .action-header {
+    width: 100%;
+    text-align: left;
+  }
+
+  .table-pagination {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pagination-controls button {
+    margin-left: 0;
+    margin-right: 8px;
+  }
+}
