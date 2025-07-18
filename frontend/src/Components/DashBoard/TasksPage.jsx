@@ -131,7 +131,7 @@ const TasksPage = () => {
         <header className="main-header">
           <h2>Tasks</h2>
           <div className="header-right">
-            <a className="requested-form" href="/requestform">Requested Form</a>
+            <a className="requested-form" href="/submissions/new">Requested Form</a>
             <a className="requested-form" href="/EmployeeStatusChangeForm" > Status Change Form </a>
             <FaUserCircle className="profile-avatar" />
           </div>

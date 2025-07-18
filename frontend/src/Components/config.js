@@ -7,12 +7,12 @@ const getBaseUrl = () => {
   switch(process.env.REACT_APP_API_BASE_URL) {
     case 'production':
       // This would be your LIVE production API URL
-      url = 'https://api.yourproductiondomain.com';
+      url = 'http://hrapi.guardianfueltech.com';
       break;
     case 'development':
     default:
       // This would be your LOCAL development API URL (e.g., your Flask server)
-      url = 'http://127.0.0.1:5000'; // Your Flask app
+      url = 'http://hrapi.guardianfueltech.com'; // Your Flask app
   }
 
   console.log(`API Base URL: ${url} (NODE_ENV: ${process.env.NODE_ENV})`); // For debugging

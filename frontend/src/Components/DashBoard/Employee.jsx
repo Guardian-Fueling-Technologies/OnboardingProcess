@@ -167,7 +167,7 @@ const DashboardPage = () => {
         <header className="main-header">
           <h2>Welcome to Guardian</h2>
           <div className="header-right">
-            <a className="requested-form" href="/requestform">Requested Form</a>
+            <a className="requested-form" href="/submissions/new">Requested Form</a>
             <a className="requested-form" href="/EmployeeStatusChangeForm" > Status Change Form </a>
             <FaUserCircle className="profile-avatar" />
           </div>

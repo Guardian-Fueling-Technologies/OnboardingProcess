@@ -1,0 +1,613 @@
+/* Variables for common colors */
+:root {
+  --color-primary-blue: #a78bfa; /* Adjusted for dark theme (purple-300 like) */
+  --color-primary-blue-hover: #8b5cf6; /* purple-500 like */
+  --color-green-success: #34d399; /* Adjusted for dark theme (emerald-400 like) */
+  --color-green-success-hover: #10b981; /* emerald-600 like */
+  --color-dark-background: #1a1a2e; /* A very dark blue/purple */
+  --color-dark-form-bg: rgba(0, 0, 0, 0.4); /* Semi-transparent dark */
+  --color-light-text: #e0e0e0; /* Off-white */
+  --color-white: #ffffff;
+  --color-gray-border: #4a4a5e; /* Darker border for light elements */
+  --color-input-text: #1f2937; /* Dark text for inputs */
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-dark-background); /* Fallback */
+  background: url(../Assets/img/ChatGPT\ Image\ May\ 29\,\ 2025\,\ 02_30_26\ PM.png);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: var(--color-light-text); /* Default text color for body */
+}
+
+.page-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem; /* py-8 px-4 */
+}
+
+/* Header Styles */
+.header {
+  width: 100%;
+  max-width: 64rem; /* max-w-6xl */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem; /* py-4 px-6 */
+  background-color: transparent; /* Transparent header */
+  /* Remove shadow and rounded-lg if header is meant to blend */
+  margin-bottom: 2rem; /* mb-8 */
+  color: var(--color-white); /* White text for header */
+}
+
+.header-logo {
+  font-size: 1.25rem; /* text-xl */
+  font-weight: 700; /* font-bold */
+  color: var(--color-white); /* White logo text */
+}
+
+.header-nav-link {
+  color: var(--color-light-text);
+  font-weight: 500; /* font-medium */
+  text-decoration: none;
+}
+
+.header-nav-link:hover {
+  color: var(--color-primary-blue);
+}
+
+/* Main Form Container */
+.form-main-content {
+  width: 100%;
+  max-width: 56rem; /* max-w-4xl */
+  max-height: 90vh;
+  overflow-y: auto;
+  padding-top: 100%;
+  padding-bottom: 13rem;
+  background-color: var(--color-dark-form-bg); /* Semi-transparent dark background */
+  padding: 2rem; /* p-8 */
+  border-radius: 0.5rem; /* rounded-lg */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1); /* Darker shadow */
+  backdrop-filter: blur(5px); /* Add a subtle blur effect for transparency */
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.form-title {
+  font-size: 1.5rem; /* text-2xl */
+  font-weight: 600; /* font-semibold */
+  color: var(--color-white); /* White title */
+  margin-bottom: 2rem; /* mb-8 */
+  text-align: center;
+}
+
+/* Step Indicator */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* margin-bottom: 10%; Add spacing below to avoid overlap */
+  z-index: 100;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--color-light-text); /* Ensure text is light */
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; /* w-8 */
+  height: 2rem; /* h-8 */
+  border-radius: 9999px; /* rounded-full */
+  margin-bottom: 0.5rem; /* mb-2 */
+  color: var(--color-input-text); /* Dark number for light circles */
+}
+
+.step-number.active {
+  background-color: var(--color-white); /* Active step number is white circle */
+  color: var(--color-input-text); /* Dark text inside active circle */
+}
+
+.step-number.inactive {
+  background-color: var(--color-gray-border); /* Inactive step number is a darker circle */
+  color: var(--color-white); /* White text inside inactive circle */
+}
+
+.step-divider {
+  flex-grow: 1;
+  border-top: 1px solid var(--color-gray-border); /* Darker divider */
+  margin: 0 1rem; /* mx-4 */
+}
+
+/* Form Section */
+.form-section-title {
+  font-size: 1.125rem; /* text-lg */
+  font-weight: 500; /* font-medium */
+  color: var(--color-white); /* White section title */
+  border-bottom: 1px solid var(--color-gray-border); /* Darker border */
+  padding-bottom: 0.5rem; /* pb-2 */
+  margin-bottom: 1.5rem; /* mb-6 */
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem; /* gap-6 */
+}
+
+@media (min-width: 768px) { /* md breakpoint */
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.form-field-group {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500; /* font-medium */
+  color: var(--color-light-text); /* Light label text */
+  margin-bottom: 0.25rem; /* mb-1 */
+}
+
+.form-input,
+.form-select {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem; /* mt-1 */
+  border: 1px solid var(--color-gray-border); /* Darker border */
+  border-radius: 0.375rem; /* rounded-md */
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* subtle shadow */
+  padding: 0.5rem 0.75rem; /* py-2 px-3 */
+  font-size: 0.875rem; /* sm:text-sm */
+  outline: none;
+  background-color: var(--color-white); /* White input background */
+  color: var(--color-input-text); /* Dark text inside input */
+}
+
+.form-input::placeholder { /* Style placeholder text */
+  color: var(--color-gray-400);
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--color-primary-blue);
+  box-shadow: 0 0 0 1px var(--color-primary-blue);
+}
+
+.form-select {
+  padding-right: 2.5rem; /* pr-10 for arrow */
+}
+
+.date-input-wrapper {
+  position: relative;
+}
+
+.date-icon {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem; /* pr-3 */
+  transform: translateY(-50%);
+  height: 1.25rem; /* h-5 */
+  width: 1.25rem; /* w-5 */
+  color: var(--color-gray-600); /* Darker icon color for light background */
+  pointer-events: none;
+}
+
+/* Radio Button Group */
+.radio-group {
+  padding-top: 1rem; /* pt-4 */
+}
+
+.radio-label-heading {
+  display: block;
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500; /* font-medium */
+  color: var(--color-light-text); /* Light text for heading */
+  margin-bottom: 0.5rem; /* mb-2 */
+}
+
+.radio-options {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem; /* space-x-6 */
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+}
+
+.radio-input {
+  height: 1rem; /* h-4 */
+  width: 1rem; /* w-4 */
+  color: var(--color-primary-blue);
+  border-color: var(--color-gray-border);
+  background-color: var(--color-white); /* White radio background */
+}
+
+.radio-input:checked {
+  background-color: var(--color-primary-blue); /* Fill with primary blue when checked */
+  border-color: var(--color-primary-blue); /* Border same as fill when checked */
+}
+
+.radio-input:focus {
+  box-shadow: 0 0 0 1px var(--color-primary-blue);
+}
+
+.radio-option-label {
+  margin-left: 0.5rem; /* ml-2 */
+  font-size: 0.875rem; /* text-sm */
+  color: var(--color-white); /* White radio option labels */
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 2rem; /* pt-8 */
+  border-top: 1px solid var(--color-gray-border); /* Darker border */
+  margin-top: 2rem; /* mt-8 */
+}
+
+.button {
+  display: inline-flex;
+  justify-content: center;
+  padding: 0.5rem 1.5rem; /* py-2 px-6 */
+  border-radius: 0.375rem; /* rounded-md */
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500; /* font-medium */
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.button:focus {
+  box-shadow: 0 0 0 2px var(--color-dark-form-bg), 0 0 0 4px var(--color-primary-blue);
+}
+
+.button-previous {
+  border: 1px solid var(--color-light-text); /* Light border for previous button */
+  color: var(--color-light-text); /* Light text */
+  background-color: transparent; /* Transparent background */
+}
+
+.button-previous:hover {
+  background-color: rgba(255, 255, 255, 0.1); /* Subtle hover */
+}
+
+.button-next {
+  border: 1px solid transparent;
+  color: var(--color-input-text); /* Dark text for the light button */
+  background-color: var(--color-white); /* White background */
+}
+
+.button-next:hover {
+  background-color: var(--color-gray-200); /* Slightly darker white on hover */
+}
+
+.button-next:focus {
+  box-shadow: 0 0 0 2px var(--color-dark-form-bg), 0 0 0 4px var(--color-green-success);
+}
+
+/* ... (existing CSS variables and styles) ... */
+
+/* Form field group for Pay rate and Yearly */
+.pay-rate-input-row {
+  display: flex; /* Makes children lay out horizontally */
+  align-items: center; /* Vertically aligns items in the middle */
+  gap: 0.75rem; /* Space between the elements */
+  margin-top: 0.25rem; /* Matches the mt-1 from form-input */
+  width: 100%; /* Ensure it takes full width of its parent column */
+}
+
+.pay-rate-input-row .form-input {
+  /* Inherit general form-input styles */
+  flex-grow: 1; /* Allow inputs to take up available space */
+  /* Remove width: 100% here as flex will control it */
+  width: auto; /* Allow flex to determine width */
+}
+
+.pay-rate-input-row .pay-rate-field {
+  flex-basis: 50%; /* Give it roughly half the space */
+  max-width: 50%; /* Ensure it doesn't grow too wide */
+}
+
+.pay-rate-input-row .yearly-field {
+  flex-basis: 50%; /* Give it roughly half the space */
+  max-width: 50%; /* Ensure it doesn't grow too wide */
+}
+
+/* Adjust label styling for inline usage */
+.form-label-inline {
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500; /* font-medium */
+  color: var(--color-text-dark);
+  white-space: nowrap; /* Prevent "Yearly" from wrapping */
+  flex-shrink: 0; /* Prevent label from shrinking */
+  /* Remove display: block and margin-bottom from original form-label */
+}
+
+/* ... (previous CSS styles) ... */
+
+/* Styles for the "Other" text area */
+.form-textarea {
+  width: 100%; /* Keep 100% here as the container will control the 50% width */
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem; /* rounded-md */
+  background-color: var(--color-input-bg);
+  color: var(--color-text-dark);
+  font-size: 1rem;
+  line-height: 1.5;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  resize: vertical; /* Allow vertical resizing */
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.form-textarea:focus {
+  border-color: var(--color-primary-active);
+  outline: 0;
+  box-shadow: 0 0 0 0.1rem rgba(66, 153, 225, 0.25); /* example shadow */
+}
+
+/* Specific adjustments for the 'Other' checkbox row */
+.checkbox-grid .full-width {
+  grid-column: 1 / -1; /* Make 'Other' row span all columns */
+  display: flex;
+  flex-direction: column; /* Stack the label and textarea */
+  align-items: flex-start; /* Align label to the start */
+}
+
+/* New class for the extended textarea */
+.extended-textarea {
+  min-height: 50px; /* Allow height to adjust with content if needed */
+  margin-top: 0.5rem; /* Space between the "Other" label and the textarea */
+  background-color: white;
+
+  /* New styles for rounded border and 50% width */
+  border-radius: 1.5rem; /* More rounded corners, adjust as needed for "rounder" */
+  width: 50%; /* Make it 50% of its parent's width */
+  max-width: 50%; /* Ensure it doesn't exceed 50% if content tries to push it */
+  align-self: center; /* Center the 50% width textarea within its flex column container */
+}
+
+/* Adjustments for the step indicator */
+.step-item .step-number.active {
+  background-color: var(--color-primary); /* Green for active step */
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.step-item .step-number.inactive {
+  background-color: white; /* Light gray for inactive step */
+  color: white;
+  border-color: white;
+}
+
+/* ... (existing CSS styles) ... */
+
+/* Styles for the Admin/Field table */
+.admin-field-table-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.admin-field-table {
+  width: 100%;
+  border-collapse: collapse; /* Collapse borders between cells */
+  font-size: 0.9375rem; /* text-sm */
+  color: var(--color-text-dark);
+}
+
+.admin-field-table th,
+.admin-field-table td {
+  padding: 0.75rem 1rem; /* py-3 px-4 */
+  border: 1px solid var(--color-border); /* Border for cells */
+  text-align: left;
+}
+
+.admin-field-table th {
+  background-color: var(--color-header-bg); /* Lighter background for table headers */
+  font-weight: 600; /* semi-bold */
+  color: var(--color-text-dark);
+}
+
+/* Specific styling for the 'Choose' column to center the checkbox */
+.admin-field-table td:nth-child(2) { /* Targeting the 'Choose' column */
+  text-align: center;
+  width: 80px; /* Adjust width as needed for the checkbox column */
+}
+
+/* Specific styling for the 'Description' column */
+.admin-field-table td:nth-child(3) { /* Targeting the 'Description' column */
+  min-width: 200px; /* Ensure description column has enough space */
+}
+
+/* Style for the input within the description column */
+.admin-field-table .description-input {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 0.25rem;
+    padding: 0.3rem 0.5rem;
+    background-color: var(--color-input-bg);
+    color: var(--color-text-dark);
+    font-size: 0.9rem;
+}
+
+
+/* ... (existing CSS from previous responses for checkbox-grid, form-textarea, etc.) ... */
+
+/* Styles for the new checkbox grid (re-included for context) */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns as per image */
+  gap: 1rem; /* Space between checkboxes */
+  margin-top: 1.5rem;
+  align-items: start; /* Align items to the start of their grid area */
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center; /* Vertically align checkbox and label */
+  gap: 0.5rem;
+}
+
+.checkbox-input {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+.checkbox-label {
+  font-size: 0.9375rem; /* Slightly larger than text-sm */
+  color: white;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Style for the "Other" text area */
+.form-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem; /* rounded-md */
+  background-color: var(--color-input-bg);
+  color: var(--color-text-dark);
+  font-size: 1rem;
+  line-height: 1.5;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  resize: vertical; /* Allow vertical resizing */
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.form-textarea:focus {
+  border-color: var(--color-primary-active);
+  outline: 0;
+  box-shadow: 0 0 0 0.1rem rgba(66, 153, 225, 0.25); /* example shadow */
+}
+
+/* Specific adjustments for the 'Other' checkbox row */
+.checkbox-grid .full-width {
+  grid-column: 1 / -1; /* Make 'Other' row span all columns */
+  display: flex;
+  flex-direction: column; /* Stack the label and textarea */
+  align-items: flex-start; /* Align label to the start */
+}
+
+/* Class for the specific "Other" checkbox and label group */
+.checkbox-group .other-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem; /* Space between checkbox and textarea if present */
+}
+
+/* New class for the extended textarea */
+.extended-textarea {
+  min-height: 100px; /* Make it extended from the start */
+  height: auto; /* Allow height to adjust with content if needed */
+  margin-top: 0.5rem; /* Space between the "Other" label and the textarea */
+  border-radius: 1.5rem; /* More rounded corners, adjust as needed for "rounder" */
+  background-color: white;
+  width: 50%; /* Make it 50% of its parent's width */
+  max-width: 50%; /* Ensure it doesn't exceed 50% if content tries to push it */
+  align-self: center; /* Center the 50% width textarea within its flex column container */
+}
+
+/* Adjustments for the step indicator */
+.step-item .step-number.active {
+  background-color: var(--color-primary); /* Green for active step */
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.step-item .step-number.inactive {
+  background-color: #e0e0e0; /* Light gray for inactive step */
+  color: #333;
+  border-color: #e0e0e0;
+}
+
+/* ... (existing CSS styles) ... */
+
+/* --- Admin/Field Table Styles --- */
+.admin-table-container {
+  width: 100%;
+  max-width: 800px; /* Adjust max-width as needed for your design */
+  margin-top: 1.5rem;
+  overflow-x: auto; /* Enable horizontal scrolling for small screens */
+}
+
+.admin-features-table {
+  width: 100%;
+  color: black;
+  position: relative; /* or static if not already */
+  z-index: 1;
+  border-collapse: collapse; /* Collapse borders between cells */
+  background-color: white; /* Set table background to white */
+  border-radius: 0.5rem; /* Rounded corners for the table */
+  overflow: hidden; /* Ensures rounded corners clip content */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+}
+
+.admin-features-table th,
+.admin-features-table td {
+  padding: 1rem 1.25rem;
+  text-align: left;
+  border-bottom: 2px solid var(--color-border); /* 2px border for bottom */
+  border-right: 2px solid var(--color-border); /* 2px border for right */
+}
+
+.admin-features-table th:last-child,
+.admin-features-table td:last-child {
+  border-right: none; /* Remove right border for the last column */
+}
+
+.admin-features-table tr:last-child td {
+  color: black;
+  border-bottom: none; /* No bottom border on the last row */
+}
+
+.admin-features-table th {
+  background-color: var(--color-header-bg); /* Header background color */
+  color: var(--color-header-text); /* Header text color */
+  font-weight: 600; /* Semi-bold font for headers */
+  font-size: 0.9rem;
+  color: black;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Style for input fields inside table cells */
+.admin-features-table .table-input {
+  width: 100%; /* Make input fill the cell */
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  background-color: var(--color-input-bg);
+  color: var(--color-text-dark);
+  font-size: 0.9rem;
+}
+
+.admin-features-table .table-input:focus {
+  border-color: var(--color-primary-active);
+  outline: none;
+  box-shadow: 0 0 0 0.1rem rgba(66, 153, 225, 0.25);
+}

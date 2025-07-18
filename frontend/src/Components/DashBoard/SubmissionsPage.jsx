@@ -68,7 +68,7 @@ const SubmissionsPage = () => { // Corrected: Removed 'async (e)'
 
 
   const handleEditClick = (id) => {
-    navigate(`/editform/${id}`); // Navigate to the edit form with the ID
+    navigate(`/submissions/${id}`); // Navigate to the edit form with the ID
   };
 
   return (
@@ -82,7 +82,7 @@ const SubmissionsPage = () => { // Corrected: Removed 'async (e)'
         <header className="main-header">
           <h2>Submissions</h2> {/* Changed title */}
           <div className="header-right">
-            <a className="requested-form" href="/requestform">Requested Form</a>
+            <a className="requested-form" href="/submissions/new">Requested Form</a>
             <a className="requested-form" href="/EmployeeStatusChangeForm" > Status Change Form </a>
             <FaUserCircle className="profile-avatar" />
           </div>

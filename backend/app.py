@@ -1,7 +1,8 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import pandas as pd # Still useful if you use pandas for other data handling or display
 import datetime
+import os
 
 # Assuming you have get_onboard_all and other db utilities defined in servertest.py
 from servertest import (
@@ -14,11 +15,13 @@ from servertest import (
     find_task_by_id, # Import task helper functions
     remove_task_by_id,
     update_task_in_db_list,
+    load_tasks_from_json,
     manage_onboarding_tasks,
     CF_SP_Emp_Detail_Search
 )
 
-app = Flask(__name__)
+app = Flask(__name__,)
+
 CORS(app) # Enable CORS for all routes
 
 # --- GET All Submissions ---
@@ -79,7 +82,7 @@ def add_submission():
             else:
                 return jsonify({"error": f"Failed to retrieve new submission {new_submission_id} after insert."}), 500
         else:
-            return jsonify({"error": "Failed to add submission to the database."}), 500
+            return jsonify({"error": f"Failed to add submission to the database.{request_data}"}), 500
     except Exception as e:
         print(f"Error in add_submission route: {e}")
         return jsonify({"error": f"Internal server error during addition: {e}"}), 500
@@ -200,7 +203,9 @@ def search_employees():
             return jsonify({"message": f"An error occurred during search: {str(e)}"}), 500
     else:
         return jsonify({"message": "please enter params"}), 200
-
-
+    
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    load_tasks_from_json()
+
+    app.debug = True
+    app.run(host='0.0.0.0', port=5000)

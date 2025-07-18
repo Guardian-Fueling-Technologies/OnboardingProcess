@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './DashboardPage.css';
 import { FaUserCircle } from 'react-icons/fa';
 import Sidebar from '../sidebar/sidebar';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../config'; // Import your configured Axios instance
 
 const DashboardPage = () => {
@@ -52,6 +52,8 @@ const DashboardPage = () => {
 
                 // --- Fetch Submissions Data (for overall stats) ---
                 const submissionsResponse = await api.get('/api/submissions');
+                // testing 
+                // console.log(submissionsResponse, api)
                 let rawSubmissionsData = [];
 
                 if (submissionsResponse.data && typeof submissionsResponse.data === 'object' && 'message' in submissionsResponse.data) {
@@ -67,16 +69,35 @@ const DashboardPage = () => {
                 // Calculate overall submission stats (these remain based on ALL data)
                 const today = new Date();
                 const currentYear = today.getFullYear();
-                const todayLocaleString = today.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                // Ensure today's date is set to midnight for accurate comparison,
+                // avoiding issues with time components.
+                today.setHours(0, 0, 0, 0);
 
                 const countToday = rawSubmissionsData.filter(submission => {
-                    const createdAtDatePart = submission.CreatedAt && typeof submission.CreatedAt === 'string' ? submission.CreatedAt.split(' ')[0] : '';
-                    const submissionDate = new Date(createdAtDatePart);
-                    return !isNaN(submissionDate.getTime()) && submissionDate.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) === todayLocaleString;
+                    // Check if submission.CreatedAt exists and has the toDate method (i.e., it's a Firebase Timestamp)
+                    if (submission.CreatedAt && typeof submission.CreatedAt.toDate === 'function') {
+                        const submissionDate = submission.CreatedAt.toDate(); // Convert Firestore Timestamp to JavaScript Date object
+                        
+                        // Normalize submissionDate to midnight for accurate day comparison
+                        submissionDate.setHours(0, 0, 0, 0);
+
+                        // Compare the timestamps (which are now both at midnight of their respective days)
+                        return submissionDate.getTime() === today.getTime();
+                    }
+                    // Handle cases where CreatedAt might be a string (less ideal but for robustness)
+                    else if (submission.CreatedAt && typeof submission.CreatedAt === 'string') {
+                        const parsedDate = new Date(submission.CreatedAt);
+                        if (!isNaN(parsedDate.getTime())) {
+                            parsedDate.setHours(0, 0, 0, 0);
+                            return parsedDate.getTime() === today.getTime();
+                        }
+                    }
+                    return false; // If CreatedAt is missing or invalid format
                 }).length;
 
                 setTotalSubmissions(rawSubmissionsData.length);
                 setSubmissionsToday(countToday);
+                console.warn(rawSubmissionsData)
 
                 const monthlyCounts = Array(12).fill(0);
                 rawSubmissionsData.forEach(submission => {
@@ -235,8 +256,8 @@ const DashboardPage = () => {
                 <header className="main-header">
                     <h2>Welcome to Guardian</h2>
                     <div className="header-right">
-                        <a className="requested-form" href="/requestform">Requested Form</a>
-                        <a className="requested-form" href="/EmployeeStatusChangeForm" > Status Change Form </a>
+                        <Link className="requested-form" to="/submissions/new">Requested Form</Link>
+                        <Link className="requested-form" to="/EmployeeStatusChangeForm" > Status Change Form </Link>
                         <FaUserCircle className="profile-avatar" />
                     </div>
                 </header>
