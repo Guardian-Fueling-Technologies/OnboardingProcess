@@ -1,36 +1,69 @@
-// src/App.jsx (or src/App.js)
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+// src/App.jsx
+import React, { useEffect } from "react"; 
+import { Routes, Route, Navigate } from "react-router-dom";
 
-// Import your LoginForm and DashboardPage components
-import { LoginForm } from './Components/LoginForm/LoginForm';
-import DashboardPage from './Components/DashBoard/DashboardPage'; // Assuming DashboardPage is a default export
-import SubmissionsPage from './Components/DashBoard/SubmissionsPage';
-import TaskPage from './Components/DashBoard/TasksPage';
-import SideBar from './Components/sidebar/sidebar';
-import Profile from './Components/Profile/profile';
-import EditForm from "./Components/EditForm/editform"
-import EmployeeStatusChangeForm from './Components/EmployeeStatusChangeForm/EmployeeStatusChangeForm';
-import Employee from './Components/DashBoard/Employee'
+import { MsalProvider } from "@azure/msal-react";
+import { PublicClientApplication} from "@azure/msal-browser";
 
-function App() {
+// MSAL config
+import { msalConfig } from "./authConfig";
+
+// Auth context (uses MSAL accounts)
+import { AuthProvider} from "./Components/AuthContext";
+
+// Pages
+import LoginForm from "./Components/LoginForm/LoginForm";
+import DashboardPage from "./Components/DashBoard/DashboardPage";
+import SubmissionsPage from "./Components/DashBoard/SubmissionsPage";
+import TaskPage from "./Components/DashBoard/TasksPage";
+import SideBar from "./Components/sidebar/sidebar";
+import Profile from "./Components/Profile/profile";
+import EditForm from "./Components/EditForm/editSubmissionform";
+import EmployeeStatusChangeForm from "./Components/EmployeeStatusChangeForm/EmployeeStatusChangeForm";
+import Employee from "./Components/DashBoard/Employee";
+import AuthPopup from "./Components/authPopup";
+import EditRoles from "./Components/EditRoles/Editroles";
+import ProtectedRoute, { PublicOnlyRoute } from "./Components/ProtectedRoute";
+
+// Create once
+const msalInstance = new PublicClientApplication(msalConfig);
+
+export default function App() {
+  useEffect(() => {
+    document.title = "HR Portal";  // 🔹 sets browser tab title
+  }, []);
   return (
-    <BrowserRouter> {/* BrowserRouter wraps your entire routing */}
-      <Routes> {/* Routes defines your different route paths */}
-        <Route path="/" element={<LoginForm />} /> {/* Login page at the root path */}
-        <Route path="/dashboard" element={<DashboardPage />} /> {/* Dashboard page at /dashboard */}
-        <Route path="/submissions" element={<SubmissionsPage />} /> {/* Dashboard page at /dashboard */}
-        <Route path="/tasks" element={<TaskPage />} /> {/* Dashboard page at /dashboard */}
-        <Route path="/sidebar" element={<SideBar />} /> {/* Dashboard page at /dashboard */}
-        <Route path="/profile" element={<Profile />} /> {/* Dashboard page at /dashboard */}
-        <Route path="/submissions/new" element={<EditForm />} />
-        {/* Route for editing an existing submission */}
-        <Route path="/submissions/:id" element={<EditForm />} />
-        <Route path="/EmployeeStatusChangeForm" element={<EmployeeStatusChangeForm />} />
-        <Route path="/Employee" element={<Employee/>} />
-      </Routes>
-    </BrowserRouter>
+    <MsalProvider instance={msalInstance}>
+      <AuthProvider>
+      <Routes>
+        
+      {/* Login page only when NOT authenticated */}
+      <Route path="/auth/popup" element={<AuthPopup />} />
+
+      <Route path="/" element={<PublicOnlyRoute><LoginForm /></PublicOnlyRoute>} />
+      <Route path="/login" element={<PublicOnlyRoute><LoginForm /></PublicOnlyRoute>} />
+
+      {/* Auth-required routes */}
+      <Route path="/dashboard" element={ <ProtectedRoute allow={["admin", "hr", "manager"]} fallbackInProgress={<div style={{ padding: 24 }}>Loading…</div>} > <DashboardPage /> </ProtectedRoute> } />
+      <Route path="/submissions" element={<ProtectedRoute><SubmissionsPage /></ProtectedRoute>} />
+      <Route path="/EditRoles" element={<ProtectedRoute><EditRoles/></ProtectedRoute>} />
+      <Route path="/submissions/new" element={<ProtectedRoute><EditForm /></ProtectedRoute>} />
+      <Route path="/submissions/:submission_id" element={<ProtectedRoute><EditForm /></ProtectedRoute>} />
+      <Route path="/tasks" element={ <ProtectedRoute> <TaskPage /> </ProtectedRoute> } />
+      <Route path="/task/new" element={<ProtectedRoute><EditForm /></ProtectedRoute>} />
+      <Route path="/task/:id" element={<ProtectedRoute><EditForm /></ProtectedRoute>} />
+      <Route path="/sidebar" element={<ProtectedRoute><SideBar /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/EmployeeStatusChangeForm" element={<ProtectedRoute><EmployeeStatusChangeForm /></ProtectedRoute>} />
+      <Route path="/Employee" element={<ProtectedRoute><Employee /></ProtectedRoute>} />
+
+      {/* Catch-all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/403" element={<div>Access denied</div>} />
+
+    </Routes>
+
+      </AuthProvider>
+    </MsalProvider>
   );
 }
-
-export default App;

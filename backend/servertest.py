@@ -1,1392 +1,1335 @@
-import pandas as pd
-import pyodbc
-import json
+# servertest.py
+# -*- coding: utf-8 -*-
+
 import os
 import re
-import datetime
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import padding
-import base64 # For encoding binary data to string
-import hashlib # For key derivation from passphrase
+import json
+import base64
+import hashlib
+import datetime, uuid
 import traceback
-from twilio.rest import Client
-import random
-import string
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import pandas as pd
+from pandas.core.series import sanitize_array
+import pyodbc
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.backends import default_backend
 
-server = os.environ.get("serverGFT")
-database = os.environ.get("databaseGFTSharePoint")
-username = os.environ.get("usernameSharePointGFT")
-password = os.environ.get("passwordSharePointGFT")
+# ------------------------------------------------------------------------------
+# ENV
+# ------------------------------------------------------------------------------
+global env
+env = "dev"
+server     = os.environ.get("serverGFT")
+database   = os.environ.get("databaseGFTSharePoint")
+username   = os.environ.get("usernameSharePointGFT")
+password   = os.environ.get("passwordSharePointGFT")
 SQLaddress = os.environ.get("addressGFT")
-ENCRYPTION_PASSPHRASE = os.environ.get("onboardPasscode")
-TWILIO_ACCOUNT_SID = os.environ.get("account_sid")
-TWILIO_AUTH_TOKEN = os.environ.get("auth_token")
+ENCRYPTION_PASSPHRASE = os.environ.get("onboardPasscode") or "change-me"
 
-def derive_key_from_passphrase(passphrase: str, salt: bytes = b'static_salt_for_app_key_derivation') -> bytes:
-    """Derives a 256-bit key from a passphrase using PBKDF2 (for demonstration)."""
-    # Using 100,000 iterations for PBKDF2. Increase in production if needed.
-    kdf = hashlib.pbkdf2_hmac('sha256', passphrase.encode('utf-8'), salt, 100000)
-    return kdf[:32] # Use first 32 bytes for AES-256
+# ------------------------------------------------------------------------------
+# DB
+# ------------------------------------------------------------------------------
+def get_db_connection() -> pyodbc.Connection:
+    """Connect to SQL Server using pyodbc (TrustServerCertificate enabled)."""
+    conn_str = (
+        f"DRIVER={SQLaddress};SERVER={server};DATABASE={database};"
+        f"UID={username};PWD={password};TrustServerCertificate=yes;"
+    )
+    return pyodbc.connect(conn_str)
 
-AES_KEY = derive_key_from_passphrase(ENCRYPTION_PASSPHRASE)
+def rows_to_dicts(cursor: pyodbc.Cursor, rows: Iterable[Tuple]) -> List[Dict[str, Any]]:
+    cols = [c[0] for c in cursor.description]
+    return [dict(zip(cols, r)) for r in rows]
 
-def encrypt_aes_cbc(value: str) -> str:
-    """
-    Encrypts a string value using AES-256-CBC with a randomly generated IV.
-    Returns a base64-encoded string combining IV and ciphertext.
-    Format: base64(IV + Ciphertext)
-    """
+# ------------------------------------------------------------------------------
+# Crypto (AES-256-CBC)
+# ------------------------------------------------------------------------------
+def _derive_key(passphrase: str, salt: bytes = b"static_salt_for_app_key_derivation") -> bytes:
+    kdf = hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"), salt, 100000)
+    return kdf[:32]
+
+AES_KEY = _derive_key(ENCRYPTION_PASSPHRASE)
+
+def encrypt_aes_cbc(value: Any) -> Optional[str]:
     if value is None:
         return None
-    # Ensure value is a string before encoding to bytes
-    value_bytes = str(value).encode('utf-8')
-
-    # Generate a random 16-byte IV for CBC mode
+    data = str(value).encode("utf-8")
     iv = os.urandom(16)
     cipher = Cipher(algorithms.AES(AES_KEY), modes.CBC(iv), backend=default_backend())
-    encryptor = cipher.encryptor()
-
-    # PKCS7 padding for AES
+    enc = cipher.encryptor()
     padder = padding.PKCS7(algorithms.AES.block_size).padder()
-    padded_data = padder.update(value_bytes) + padder.finalize()
+    padded = padder.update(data) + padder.finalize()
+    ct = enc.update(padded) + enc.finalize()
+    return base64.b64encode(iv + ct).decode("utf-8")
 
-    ciphertext = encryptor.update(padded_data) + encryptor.finalize()
-
-    # Combine IV and ciphertext, then base64 encode for storage
-    return base64.b64encode(iv + ciphertext).decode('utf-8')
-
-def decrypt_aes_cbc(encrypted_b64_value: str):
-    """
-    Decrypts a base64-encoded string (IV + ciphertext) using AES-256-CBC.
-    Returns the original string value, or None if input is None or decryption fails.
-    """
-    if encrypted_b64_value is None:
+def decrypt_aes_cbc(enc_b64: Any) -> Optional[str]:
+    if enc_b64 is None:
         return None
     try:
-        # Check if the value is already decrypted or not a string (e.g., if a number was somehow passed)
-        if not isinstance(encrypted_b64_value, str):
-            # If it's not a string, assume it's already decrypted or not encrypted.
-            # You might want more robust error handling here.
-            return encrypted_b64_value
-            
-        decoded_data = base64.b64decode(encrypted_b64_value)
-        # Extract IV (first 16 bytes) and ciphertext
-        iv = decoded_data[:16]
-        ciphertext = decoded_data[16:]
-
+        if not isinstance(enc_b64, str):
+            return enc_b64
+        raw = base64.b64decode(enc_b64)
+        iv, ct = raw[:16], raw[16:]
         cipher = Cipher(algorithms.AES(AES_KEY), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-
-        padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-
-        # Unpad the plaintext
-        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        plaintext_bytes = unpadder.update(padded_plaintext) + unpadder.finalize()
-
-        return plaintext_bytes.decode('utf-8')
+        dec = cipher.decryptor()
+        padded = dec.update(ct) + dec.finalize()
+        unpad = padding.PKCS7(algorithms.AES.block_size).unpadder()
+        plain = unpad.update(padded) + unpad.finalize()
+        return plain.decode("utf-8")
     except Exception as e:
-        print(f"Decryption error (AES-CBC) for value: {encrypted_b64_value} - {e}")
+        print(f"[decrypt] failed: {e}")
         traceback.print_exc()
-        return None # Or raise an error, depending on desired behavior
+        return None
 
-# --- Environment Variable Setup (IMPORTANT: You need to set these in your environment) ---
-# Example for setting environment variables (replace with your actual credentials and details):
-# On Linux/macOS:
-# export serverGFT="your_server_address"
-# export databaseGFTSharePoint="your_database_name"
-# export usernameSharePointGFT="your_username"
-# export passwordSharePointGFT="your_password"
-# export addressGFT="{ODBC Driver 17 for SQL Server}" # Or your specific ODBC driver
-
-# On Windows (Command Prompt):
-# setx serverGFT="your_server_address" /M
-# setx databaseGFTSharePoint="your_database_name" /M
-# setx usernameSharePointGFT="your_username" /M
-# setx passwordSharePointGFT="your_password" /M
-# setx addressGFT="{ODBC Driver 17 for SQL Server}" /M
-
-# In Python (for testing, not recommended for production):
-# os.environ["serverGFT"] = "your_server_address"
-# os.environ["databaseGFTSharePoint"] = "your_database_name"
-# os.environ["usernameSharePointGFT"] = "your_username"
-# os.environ["passwordSharePointGFT"] = "your_password"
-# os.environ["addressGFT"] = "{ODBC Driver 17 for SQL Server}"
-
+# ------------------------------------------------------------------------------
+# Sanitization (defense-in-depth; we still use parametrized queries)
+# ------------------------------------------------------------------------------
 SQL_INJECTION_PATTERNS = re.compile(
-    r"""(?ix)  # i: case-insensitive, x: verbose (allows whitespace and comments)
-    (?:
-    --                     | # SQL comments
-    ;                      | # Semicolon to chain commands
-    /\* | # Multi-line comment start
-    \*/                    | # Multi-line comment end
-    '                      | # Single quote
-    "                      | # Double quote
-    \b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|xp_cmdshell|benchmark|sp_)\b | # Common SQL keywords
-    \b(OR|AND)\b\s*.*\b(EXISTS|SLEEP|WAITFOR\s+DELAY)\b # Boolean-based/time-based patterns
-    )
+    r"""(?ix)
+        (?:--|;|/\*|\*/|'|"|
+        \b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|XP_CMDSHELL|BENCHMARK|SP_)\b|
+        \b(OR|AND)\b\s*.*\b(EXISTS|SLEEP|WAITFOR\s+DELAY)\b)
     """
 )
 
-def sanitize_input(value):
-    """
-    Recursively sanitize input against SQL injection attempts.
-    Raises ValueError if suspicious content is detected.
-    """
+def sanitize_input(value: Any) -> Any:
     if isinstance(value, str):
         if SQL_INJECTION_PATTERNS.search(value):
             raise ValueError(f"Potential SQL injection detected in input: {value}")
         return value
-
-    elif isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple)):
         return [sanitize_input(v) for v in value]
-
-    elif isinstance(value, dict):
+    if isinstance(value, dict):
         return {k: sanitize_input(v) for k, v in value.items()}
-
-    elif isinstance(value, (int, float, bool)) or value is None:
+    if isinstance(value, (int, float, bool, datetime.datetime, datetime.date)) or value is None:
         return value
-    elif isinstance(value, (int, float, bool, datetime.datetime, datetime.date)) or value is None:
-        return value
+    raise ValueError(f"Unsupported input type for SQL sanitization: {type(value)}")
 
-    else:
-        raise ValueError(f"Unsupported input type for SQL sanitization: {type(value)}")
-def get_db_connection():
-    """Establishes and returns a pyodbc database connection."""
+# ------------------------------------------------------------------------------
+# Role / Profile (MR_OnBoardRoleInfo)
+# ------------------------------------------------------------------------------
+def get_profile_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """Return the latest role row for a given username/UPN (case-insensitive)."""
     try:
-        conn_str = (
-            f"DRIVER={SQLaddress};SERVER={server};DATABASE={database};"
-            f"UID={username};PWD={password};TrustServerCertificate=yes;"
-        )
-        # print(conn_str)
-        conn = pyodbc.connect(conn_str)
-        return conn
-    except pyodbc.Error as ex:
-        sqlstate = ex.args[0]
-        print(f"Database connection error: {sqlstate} - {ex}")
-        raise # Re-raise the exception for upstream handling
+        if not username:
+            return None
+        u = sanitize_input(username.strip().lower())
 
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT TOP 1
+                       display_name,
+                       email,
+                       role,
+                       edited_by,
+                       createdTime,
+                       editTime,
+                       role_id,
+                       env,
+                       password,
+                       status,
+                       ROW_ID
+                FROM MR_OnBoardRoleInfo
+                WHERE 
+                   LOWER(display_name) = ?
+                ORDER BY COALESCE(editTime, createdTime) DESC
+                """,
+                (u),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = [c[0] for c in cur.description]
+            return dict(zip(cols, row))
+    except Exception as e:
+        print(f"[get_profile_by_username] {e}")
+        traceback.print_exc()
+        return None
 
-def manage_EmployeeStatusChanges(request_data: dict):
-    """
-    Manages EmployeeStatusChanges records (INSERT or UPDATE).
-    Encrypts 'CurrentRate_E' and 'NewRate_E' columns before database operations.
-
-    Args:
-        request_data (dict): A dictionary containing the data for the record.
-                             If 'SubmissionID' is present, it attempts an UPDATE.
-                             Otherwise, it performs an INSERT.
-
-    Returns:
-        bool: True if the operation was successful, False otherwise.
-        str: A message indicating the outcome or error.
-    """
-    conn = None
-    cursor = None
-    operation_type = "UPDATE" if "SubmissionID" in request_data and request_data["SubmissionID"] is not None else "INSERT"
-
-    # Create a mutable copy of request_data to modify for encryption
-    processed_data = request_data.copy()
-
-    # --- ENCRYPT SENSITIVE COLUMNS ---
-    columns_to_encrypt = ["CurrentRate_E", "NewRate_E"]
-    for col in columns_to_encrypt:
-        if col in processed_data and processed_data[col] is not None:
-            try:
-                processed_data[col] = encrypt_aes_cbc(processed_data[col])
-            except Exception as e:
-                print(f"Error encrypting column {col}: {e}")
-                return False, f"Error encrypting data for {col}."
-
+def get_profile_by_id(username: str) -> Optional[Dict[str, Any]]:
+    """Return the latest role row for a given username/UPN (case-insensitive)."""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if not username:
+            return None
+        u = sanitize_input(username.strip().lower())
 
-        if operation_type == "INSERT":
-            # Exclude SubmissionID and SubmittedAt (as they are auto-generated/defaulted)
-            cols_to_insert = [col for col in processed_data.keys() if col not in ["SubmissionID", "SubmittedAt"]]
-            values_placeholder = ", ".join(["?"] * len(cols_to_insert))
-            column_names = ", ".join([f"[{col}]" for col in cols_to_insert]) # Enclose column names in brackets for SQL Server
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT TOP 1
+                       display_name,
+                       email,
+                       role,
+                       edited_by,
+                       createdTime,
+                       editTime,
+                       env,
+                       status,
+                       role_id,
+                       ROW_ID
+                FROM MR_OnBoardRoleInfo
+                WHERE LOWER(role_id) = ?
+                ORDER BY COALESCE(editTime, createdTime) DESC
+                """,
+                (u),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = [c[0] for c in cur.description]
+            return dict(zip(cols, row))
+    except Exception as e:
+        print(f"[get_profile_by_id] {e}")
+        traceback.print_exc()
+        return None
 
-            sql_query = f"""
-            INSERT INTO [dbo].[EmployeeStatusChanges] ({column_names})
-            VALUES ({values_placeholder})
+def get_profile_by_email(email: str, env: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Return the latest role row for a user email.
+    If env is provided, scope the search to that environment.
+    """
+    try:
+        if not email:
+            return None
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+
+            where_clauses = ["email = ?"]
+            params = [sanitize_input(email)]
+
+            if env is not None and str(env).strip() != "":
+                where_clauses.append("env = ?")
+                params.append(sanitize_input(env))
+
+            sql = f"""
+                SELECT TOP 1
+                    display_name,
+                    email,
+                    role,
+                    edited_by,
+                    createdTime,
+                    editTime,
+                    role_id,
+                    env,
+                    status,
+                    ROW_ID
+                FROM MR_OnBoardRoleInfo
+                WHERE {" AND ".join(where_clauses)}
+                ORDER BY
+                    COALESCE(editTime, createdTime) DESC,
+                    ROW_ID DESC
             """
-            values = tuple(processed_data[col] for col in cols_to_insert)
-            print(f"Executing INSERT: {sql_query} with values: {values}")
-            cursor.execute(sql_query, values)
-            conn.commit()
-            return True, "Record inserted successfully."
 
-        elif operation_type == "UPDATE":
-            submission_id = processed_data.pop("SubmissionID") # Remove ID from data to update
-            # SubmittedAt is usually not updated, but include if needed
-            cols_to_update = [col for col in processed_data.keys() if col not in ["SubmittedAt"]]
-            set_clauses = ", ".join([f"[{col}] = ?" for col in cols_to_update]) # Enclose column names in brackets
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone()
+            if not row:
+                return None
 
-            sql_query = f"""
-            UPDATE [dbo].[EmployeeStatusChanges]
-            SET {set_clauses}
-            WHERE [SubmissionID] = ?
-            """
-            values = tuple(processed_data[col] for col in cols_to_update) + (submission_id,)
-            print(f"Executing UPDATE: {sql_query} with values: {values}")
-            cursor.execute(sql_query, values)
-            conn.commit()
-
-            # Check if any row was actually updated
-            if cursor.rowcount == 0:
-                return False, f"No record found with SubmissionID: {submission_id} to update."
-            return True, f"Record with SubmissionID {submission_id} updated successfully."
+            cols = [c[0] for c in cur.description]
+            return dict(zip(cols, row))
 
     except Exception as e:
-        print(f"An error occurred during {operation_type} operation: {e}")
-        traceback.print_exc() # Log the full traceback for debugging
-        return False, f"Error during {operation_type} operation: {e}"
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        print(f"[get_profile_by_email] {e}")
+        traceback.print_exc()
+        return None
 
-# --- onboard (Existing, with minor improvements) ---
-def get_onboard_all():
-    """
-    Fetches all records from the OnBoardRequestForm table.
-    Decrypts 'PayRate' in Python after fetching.
-    Skips rows where decryption fails.
-    Returns a pandas DataFrame.
-    """
-    conn = None
-    cursor = None
+def get_all_roles() -> Optional[Dict[str, Any]]:
+    """Return the latest role row for a user email."""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql_query = "SELECT * FROM OnBoardRequestForm"
-        cursor.execute(sql_query)
-        rows = cursor.fetchall()
-        column_names = [column[0] for column in cursor.description]
-        onboard_df = pd.DataFrame.from_records(rows, columns=column_names)
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT *
+                FROM MR_OnBoardRoleInfo
+                """
+            )
+            rows = cur.fetchall()
+            if not rows:
+                return []
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, r)) for r in rows]
+    except Exception as e:
+        print(f"[get_profile_by_email] {e}")
+        traceback.print_exc()
+        return None
 
-        # Safe decryption of PayRate
-        if 'PayRate' in onboard_df.columns:
+def allowed_roles_for(role: str) -> List[str]:
+    """Return same-or-below roles; 'simple' is special-cased elsewhere to self-only."""
+    if role == "admin":
+        return ["simple", "fr", "manager", "hr", "admin"]
+    if role == "hr":
+        return ["simple", "fr", "manager", "hr"]
+    # Add other roles as needed
+    return []
+
+def get_roles_with_role(role: str) -> Optional[List[dict]]:
+    """Return all rows from MR_OnBoardRoleInfo where role is in allowed roles."""
+    try:
+        allowed_roles = allowed_roles_for(role)
+        if not allowed_roles:
+            return []
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            placeholders = ','.join(['?'] * len(allowed_roles))
+            query = f"""
+                SELECT *
+                FROM MR_OnBoardRoleInfo 
+                WHERE role IN ({placeholders})
+            """
+            cur.execute(query, allowed_roles)
+            rows = cur.fetchall()
+            if not rows:
+                return []
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, r)) for r in rows]
+    except Exception as e:
+        print(f"[get_all_roles] {e}")
+        traceback.print_exc()
+        return None
+
+def update_profile(
+    *,
+    email: str,
+    role: str,
+    edited_by: str,
+    edit_time: str | None = None,
+    createdTime: str | None = None,
+    status: str | None = None,
+    display_name: str | None = None,
+    env: str | None = None,
+    role_id: str | None = None,
+) -> bool:
+    """
+    Update MR_OnBoardRoleInfo dynamically.
+    Required: email, role, edited_by
+    Optional: display_name, env, createdTime, edit_time, status
+    If role_id provided, updates by role_id+email. Otherwise, update most recent row for that email.
+    """
+    try:
+        if not edit_time:
+            edit_time = datetime.datetime.utcnow().isoformat()
+
+        # Always update these three
+        set_cols = ["role = ?", "edited_by = ?", "editTime = ?"]
+        params   = [
+            sanitize_input(role),
+            sanitize_input(edited_by),
+            edit_time,
+        ]
+
+        # Optional params
+        if status is not None:
+            set_cols.append("status = ?")
+            params.append(sanitize_input(status))
+
+        if display_name is not None:
+            set_cols.append("display_name = ?")
+            params.append(sanitize_input(display_name))
+
+        if env is not None:
+            set_cols.append("env = ?")
+            params.append(sanitize_input(env))
+
+        if createdTime is not None:
+            set_cols.append("createdTime = ?")
+            params.append(createdTime)
+
+        set_clause = ", ".join(set_cols)
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+
+            if role_id:
+                # update specific record
+                sql = f"""
+                    UPDATE MR_OnBoardRoleInfo
+                    SET {set_clause}
+                    WHERE role_id = ? AND email = ?
+                """
+                params_final = params + [role_id, sanitize_input(email)]
+            else:
+                # update most recent row for this email
+                sql = f"""
+                    UPDATE MR_OnBoardRoleInfo
+                    SET {set_clause}
+                    WHERE email = ?
+                      AND editTime = (
+                          SELECT MAX(editTime)
+                          FROM MR_OnBoardRoleInfo
+                          WHERE email = ?
+                      )
+                """
+                params_final = params + [sanitize_input(email), sanitize_input(email)]
+
+            cur.execute(sql, tuple(params_final))
+            conn.commit()
+            return cur.rowcount > 0
+
+    except Exception as e:
+        print(f"[update_profile] {e}")
+        traceback.print_exc()
+        return False
+
+def insert_profile( display_name: str, email: str, role: str, edited_by: str, createdTime: str, edit_time: str, password: str, status: str, role_id: Optional[uuid] = None, env: str = "dev" ) -> bool:
+    """Insert a new role row (audit table semantics). Skip role_id if None."""
+    try:
+        if not edit_time:
+            edit_time = datetime.datetime.utcnow()
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            if role_id:
+                # Insert with role_id
+                cur.execute(
+                    """
+                    INSERT INTO MR_OnBoardRoleInfo 
+                        (display_name, email, role, edited_by, role_id, createdTime, editTime, env, password, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        sanitize_input(display_name),
+                        sanitize_input(email),
+                        sanitize_input(role),
+                        sanitize_input(edited_by),
+                        role_id,
+                        createdTime, edit_time,
+                        sanitize_input(env),
+                        sanitize_input(password),
+                        sanitize_input(status),
+                    ),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO MR_OnBoardRoleInfo 
+                        (display_name, email, role, edited_by, createdTime, editTime, env, password, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        sanitize_input(display_name),
+                        sanitize_input(email),
+                        sanitize_input(role),
+                        sanitize_input(edited_by),
+                        createdTime, edit_time,
+                        sanitize_input(env),
+                        sanitize_input(password),
+                        sanitize_input(status),
+                    ),
+                )
+                cur.execute("EXEC dbo.MR_UpdateSubmissionIds")
+            conn.commit()
+            return True
+
+    except Exception as e:
+        print(f"[insert_profile] {e}")
+        traceback.print_exc()
+        return False
+
+def update_role_only(email: str, new_role: str) -> bool:
+    """Update only the role field for a user identified by email."""
+    try:
+        edit_time = datetime.datetime.utcnow()
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE MR_OnBoardRoleInfo
+                SET role = ?, editTime = ?, status = ?
+                WHERE email = ?
+                """,
+                (
+                    sanitize_input(new_role),
+                    edit_time, "stable",
+                    sanitize_input(email),
+                ),
+            )
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"[update_role_only] {e}")
+        traceback.print_exc()
+        return False
+
+def delete_all_profiles(reseed_identity: bool = False, env: str = "dev"):
+    """
+    Delete rows from [dbo].[MR_OnBoardRoleInfo] for the given env.
+    Treat NULL env as the provided env (via COALESCE). Returns (ok, deleted_count, message).
+    """
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+
+            table_name = "[dbo].[MR_OnBoardRoleInfo]"
+
+            # Parameterized query; treat NULL as provided env
+            q = f"DELETE FROM {table_name} WHERE COALESCE(env, ?) = ?"
+            cur.execute(q, (env, env))
+            deleted = cur.rowcount
+            msg = f"Deleted {deleted} row(s) from {table_name} where env='{env}'."
+
+            if reseed_identity:
+                # Reseed identity after deletion (if the table has one)
+                bare = table_name.replace("[dbo].[", "dbo.").replace("]", "")
+                reseed_sql = (
+                    "IF EXISTS (SELECT 1 FROM sys.identity_columns "
+                    f"WHERE object_id = OBJECT_ID('{bare}')) "
+                    f"DBCC CHECKIDENT('{bare}', RESEED, 0)"
+                )
+                cur.execute(reseed_sql)
+                msg += " Identity reseeded to 0."
+
+            conn.commit()
+            print(msg)
+            return True, deleted, msg
+
+    except Exception as e:
+        print(f"[delete_all_profiles] {e}")
+        traceback.print_exc()
+        return False, None, str(e)
+
+
+def delete_profile_by_email(email: str, env: str | None = None):
+    """
+    Hard-delete rows from [dbo].[MR_OnBoardRoleInfo] by email.
+    If env is provided, match rows where COALESCE(env, env_param) = env_param.
+    Case-insensitive match on email.
+
+    Returns: (ok: bool, deleted_count: int | None, message: str)
+    """
+    if not email:
+        return False, None, "Email is required"
+
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+
+            table_name = "[dbo].[MR_OnBoardRoleInfo]"
+
+            if env is None:
+                # No env filter — delete by email only (case-insensitive)
+                sql = f"""
+                    DELETE FROM {table_name}
+                    WHERE LOWER(email) = LOWER(?)
+                """
+                params = (email,)
+            else:
+                # With env filter; treat NULL env as provided env (COALESCE)
+                sql = f"""
+                    DELETE FROM {table_name}
+                    WHERE LOWER(email) = LOWER(?)
+                      AND COALESCE(env, ?) = ?
+                """
+                params = (email, env, env)
+
+            cur.execute(sql, params)
+            deleted = cur.rowcount
+            conn.commit()
+
+            msg = (f"Deleted {deleted} row(s) from {table_name} "
+                   f"for email='{email}'" + (f" and env='{env}'." if env is not None else "."))
+            print(msg)
+            return True, deleted, msg
+
+    except Exception as e:
+        print(f"[delete_profile_by_email] {e}")
+        traceback.print_exc()
+        return False, None, str(e)
+
+def _as_uuid_or_none(val: Optional[str]) -> Optional[uuid.UUID]:
+    if not val:
+        return None
+    try:
+        return uuid.UUID(str(val))
+    except Exception:
+        # make deterministic GUID from string (email, idhash, etc.)
+        return uuid.uuid5(uuid.NAMESPACE_URL, str(val))
+
+def seed_roles_from_users_json(path: str = None, env: str = None, dedupe: bool = True) -> dict:
+    path = path or os.getenv("USERS_DB_PATH", "users.json")
+    env  = env  or os.getenv("APP_ENV", "dev")
+
+    summary = {"file": path, "env": env, "total": 0, "inserted": 0, "skipped": 0, "failed": 0, "failures": []}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        users = list(data.values()) if isinstance(data, dict) else list(data)
+        summary["total"] = len(users)
+        seen_emails = set()
+
+        for idx, u in enumerate(users):
+            try:
+                email = (u.get("email") or "").strip().lower()
+                if not email:
+                    summary["failed"] += 1
+                    summary["failures"].append({"index": idx, "reason": "missing email"})
+                    continue
+
+                if email in seen_emails:
+                    summary["skipped"] += 1
+                    continue
+                seen_emails.add(email)
+
+                display_name = (u.get("display_name") or u.get("name") or email.split("@")[0]).strip()
+                # Keep role handling consistent with DB defaults
+                role = (u.get("role") or "simple").strip()
+                edited_by_raw = (u.get("edited_by") or email).strip()
+
+                role_id = _as_uuid_or_none(u.get("role_id") or u.get("idhash") or u.get("id") or None)
+
+                edited_by = edited_by_raw
+
+                createdTime = u.get("createdTime")
+                edit_time    = u.get("editTime")
+                password     = u.get("password")
+                status = u.get("status").strip()
+
+                if dedupe:
+                    # Make sure this filters by env and prefers latest edit_time
+                    current = get_profile_by_email(email, env=env)
+                    if current and \
+                       (current.get("display_name") or "").strip() == display_name and \
+                       (current.get("role") or "").strip().lower() == role.lower():
+                        summary["skipped"] += 1
+                        continue
+
+                ok = insert_profile(
+                    display_name=display_name,
+                    email=email,
+                    role=role,
+                    edited_by=edited_by,
+                    createdTime=createdTime,
+                    edit_time=edit_time,
+                    env=env,
+                    role_id=role_id,
+                    password=password,
+                    status=status
+                )
+
+                if ok:
+                    summary["inserted"] += 1
+                else:
+                    summary["failed"] += 1
+                    summary["failures"].append({"index": idx, "reason": "upsert_profile returned False"})
+
+            except Exception as e:
+                summary["failed"] += 1
+                summary["failures"].append({"index": idx, "reason": f"{type(e).__name__}: {e}"})
+                traceback.print_exc()
+
+    except Exception as e:
+        summary["failed"] += 1
+        summary["failures"].append({"index": None, "reason": f"{type(e).__name__}: {e}"})
+        traceback.print_exc()
+
+    print(f"[seed] file={summary['file']} env={summary['env']} -> inserted={summary['inserted']} skipped={summary['skipped']} failed={summary['failed']}")
+    return summary
+
+def elevate_all_roles_to_admin(env: str = "dev", include_null_env: bool = True, only_if_not_admin: bool = True, limit: int | None = None, dry_run: bool = False) -> dict:
+    """
+    Set role='admin' for all rows in MR_OnBoardRoleInfo for the given env.
+    Treat NULL env as the target env when include_null_env=True.
+    Optionally only update rows that aren't already admin.
+    """
+    table = "[dbo].[MR_OnBoardRoleInfo]"
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+
+            # Build WHERE
+            where_env = "COALESCE(env, ?) = ?" if include_null_env else "env = ?"
+            params = [env, env] if include_null_env else [env]
+
+            if only_if_not_admin:
+                where_env += " AND (role IS NULL OR LTRIM(RTRIM(LOWER(role))) <> 'admin')"
+
+            # Preview: how many would be affected?
+            preview_sql = f"SELECT COUNT(*) FROM {table} WHERE {where_env}"
+            cur.execute(preview_sql, tuple(params))
+            (would_update,) = cur.fetchone()
+
+            # Optionally limit (by role_id descending just to be deterministic)
+            limit_clause = ""
+            if limit and limit > 0:
+                limit_clause = f" TOP ({int(limit)}) "
+
+            # Do the update
+            update_sql = f"""
+                UPDATE{limit_clause} {table}
+                SET role = 'admin', editTime = SYSDATETIME()
+                WHERE {where_env}
+            """
+
+            updated = 0
+            if not dry_run:
+                cur.execute(update_sql, tuple(params))
+                updated = cur.rowcount
+                conn.commit()
+
+            return {
+                "env": env,
+                "include_null_env": include_null_env,
+                "only_if_not_admin": only_if_not_admin,
+                "limit": limit,
+                "dry_run": dry_run,
+                "would_update": int(would_update),
+                "updated": int(updated),
+                "message": ("Dry run (no changes)." if dry_run else f"Updated {updated} row(s).")
+            }
+    except Exception as e:
+        traceback.print_exc()
+        return {"error": str(e)}
+
+# trial run never run again
+# delete_all_profiles(env = "dev")
+# print(delete_profile_by_email( "sam@corp.local", env="prod"))
+# print(delete_profile_by_email( "nancy@guardianfueltech.com", env="prod"))
+# print(delete_profile_by_email( "maya@corp.local", env="prod"))
+# print(delete_profile_by_email( "sam@corp.local", env="prod"))
+
+
+# seed_roles_from_users_json(path="users.json", env="dev", dedupe=True)
+# print(seed_roles_from_users_json(path="microusers.json", env="dev", dedupe=True))
+# print(elevate_all_roles_to_admin(env="prod", dry_run=False))
+# print(get_all_roles())
+
+# ------------------------------------------------------------------------------
+# Task Categories (MR_OnBoardCategory)
+# ------------------------------------------------------------------------------
+def load_task_categories(env: str = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Build a dict keyed by event_key (e.g. 'EmployeeID_Requested') from MR_OnBoardCategory.
+    If env is provided, filter by it.
+    """
+    q = """
+        SELECT event_key, env, short_code, task_type, name_prefix, assignedTo, description,
+               to_email, to_phone, email_subject, email_body_template
+        FROM MR_OnBoardCategory
+    """
+    params: Tuple = ()
+    if env:
+        q += " WHERE env = ?"
+        params = (sanitize_input(env),)
+
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(q, params)
+            rows = rows_to_dicts(cur, cur.fetchall())
+            out = {}
+            for r in rows:
+                out[r["event_key"]] = r
+            return out
+    except Exception as e:
+        print(f"[load_task_categories] {e}")
+        traceback.print_exc()
+        return {}
+
+def handle_db_exception(ctx: str, e: Exception, default):
+    """Handle DB exceptions differently in dev vs prod."""
+    if env == "dev":
+        # Raise full error stack so Flask route catches & returns JSON
+        raise
+    else:
+        print(f"[{ctx}] {e}")
+        traceback.print_exc()
+        return default
+
+# ------------------------------------------------------------------------------
+# Tasks (MR_OnBoardTask)  — all JSON/in-memory code removed
+# ------------------------------------------------------------------------------
+TASK_TABLE = "MR_OnBoardTask"
+
+def compose_task_id(onboarding_id: uuid.UUID, short_code: str) -> str:
+    return f"ONB-{onboarding_id}-{short_code}"
+
+# def _row_to_json_safe(cursor, row) -> Dict[str, Any]:
+#     """Zip row to dict and convert datetimes to ISO strings so it can be JSON-serialized."""
+#     cols = [c[0] for c in cursor.description]
+#     obj = dict(zip(cols, row))
+#     for k, v in obj.items():
+#         if isinstance(v, (datetime.date, datetime.datetime)):
+#             obj[k] = v.isoformat()
+#         # add other conversions here if needed (e.g., Decimal -> float)
+#     return obj
+
+def list_all_tasks_simple() -> List[Dict[str, Any]]:
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(f"""
+                SELECT task_id, name, description, task_type, assignedTo, employee_full_name,
+                       related_onboarding_id, manager, onboarding_id, to_email, to_phone,
+                       Status, created_at, updated_at, submission_id, env, Row_ID
+                FROM {TASK_TABLE}
+                ORDER BY created_at DESC
+            """)
+            columns = [desc[0] for desc in cur.description]
+            rows = cur.fetchall()
+
+            # Convert rows -> list of dicts
+            tasks = [dict(zip(columns, row)) for row in rows]
+
+            # ✅ Ensure unique task_id (in case of query engine differences)
+            unique_tasks = []
+            seen = set()
+            for task in tasks:
+                tid = str(task.get("task_id")).strip()
+                if tid and tid not in seen:
+                    seen.add(tid)
+                    unique_tasks.append(task)
+
+            print(f"[list_all_tasks_simple] ✅ Retrieved {len(unique_tasks)} unique tasks")
+            return unique_tasks
+    except Exception as e:
+        print(f"[list_all_tasks_simple] ⚠️ Error: {e}")
+    return handle_db_exception("list_all_tasks_simple", e, [])
+# print(list_all_tasks_simple())
+
+def find_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"SELECT * FROM {TASK_TABLE} WHERE task_id = ?",
+                (sanitize_input(task_id),),
+            )
+            row = cur.fetchone()
+            return dict(zip([c[0] for c in cur.description], row)) if row else None
+    except Exception as e:
+        return handle_db_exception("find_task_by_id", e, [])
+
+def db_find_task(employee_full_name: str, task_type: str, related_onboarding_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"""
+                SELECT TOP 1 *
+                FROM {TASK_TABLE}
+                WHERE employee_full_name = ? AND task_type = ? AND related_onboarding_id = ?
+                ORDER BY updated_at DESC
+                """,
+                (sanitize_input(employee_full_name), sanitize_input(task_type), related_onboarding_id),
+            )
+            row = cur.fetchone()
+            return dict(zip([c[0] for c in cur.description], row)) if row else None
+    except Exception as e:
+        return handle_db_exception("db_find_task", e, [])
+
+def db_insert_task(task: Dict[str, Any]) -> bool:
+    cols = [
+        "task_id","name","description","task_type","assignedTo","employee_full_name",
+        "related_onboarding_id","manager","onboarding_id","to_email","to_phone","Status",
+        "created_at","updated_at","submission_id"
+    ]
+    now = datetime.datetime.utcnow()
+    task = {**task}
+    task.setdefault("Status", "Open")
+    task.setdefault("created_at", now)
+    task.setdefault("updated_at", now)
+    values = [task.get(c) for c in cols]
+    q = f"""
+        INSERT INTO {TASK_TABLE} ({", ".join("[" + c + "]" for c in cols)})
+        VALUES ({", ".join("?" for _ in cols)})
+    """
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(q, tuple(values))
+            conn.commit()
+            print(f"[db_insert_task] inserted {task.get('task_id')}")
+            return True
+    except Exception as e:
+        return handle_db_exception("db_insert_task", e, [])
+
+def update_task_in_db_list(task_id: str, fields: Dict[str, Any]) -> bool:
+    if not fields:
+        return True
+    fields = {k: v for k, v in fields.items() if k.lower() != "task_id"}
+    fields["updated_at"] = datetime.datetime.utcnow()
+    sets = ", ".join(f"[{k}] = ?" for k in fields.keys())
+    vals = list(fields.values()) + [task_id]
+    q = f"UPDATE {TASK_TABLE} SET {sets} WHERE task_id = ?"
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(q, tuple(vals))
+            conn.commit()
+            return cur.rowcount > 0
+    except Exception as e:
+        return handle_db_exception("update_task_in_db_list", e, [])
+        return False
+
+def remove_task_by_id(task_id: str) -> bool:
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(f"DELETE FROM {TASK_TABLE} WHERE task_id = ?", (task_id,))
+            conn.commit()
+            return cur.rowcount > 0
+    except Exception as e:
+        return handle_db_exception("remove_task_by_id", e, [])
+
+# ------------------------------------------------------------------------------
+# OnBoardRequestForm CRUD (with PayRate encryption in DB / decryption on read)
+# ------------------------------------------------------------------------------
+def get_onboard_all() -> pd.DataFrame:
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM OnBoardRequestForm")
+            rows = cur.fetchall()
+            cols = [c[0] for c in cur.description]
+            df = pd.DataFrame.from_records(rows, columns=cols)
+
+        if "PayRate" in df.columns:
             def safe_decrypt(x):
                 try:
                     return decrypt_aes_cbc(str(x)) if x is not None else None
                 except Exception:
-                    return None  # Will drop this row later
-
-            onboard_df['PayRate'] = onboard_df['PayRate'].apply(safe_decrypt)
-            onboard_df = onboard_df[onboard_df['PayRate'].notna()]  # Drop rows where decryption failed
-            onboard_df['PayRate'] = pd.to_numeric(onboard_df['PayRate'], errors='coerce')
-
-        return onboard_df
-
+                    return None
+            df["PayRate"] = df["PayRate"].apply(safe_decrypt)
+            df = df[df["PayRate"].notna()]
+            df["PayRate"] = pd.to_numeric(df["PayRate"], errors="coerce")
+        return df
     except Exception as e:
-        print(f"An error occurred during SELECT ALL (with decryption): {e}")
-        traceback.print_exc()
-        return pd.DataFrame()  # Empty DataFrame on failure
+        return handle_db_exception("get_onboard_all", e, [])
+        
+# pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
+# print(get_onboard_all())
 
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
-# --- GET BY ID Operation (with PayRate Decryption in Python) ---
-def get_onboard_request_by_id(request_id: int):
-    """
-    Fetches a single record from the OnBoardRequestForm table by its Id.
-    Decrypts 'PayRate' in Python after fetching.
-    If 'PayRate' is None/empty after decryption, it is dropped from the record.
-    Returns a dictionary of the record, or None if not found.
-    Uses a parameterized query for security.
-    """
-    conn = None
-    cursor = None
+def get_onboard_request_by_id(submission_id: uuid) -> Optional[Dict[str, Any]]:
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        sql_query = """SELECT * FROM OnBoardRequestForm WHERE Id = ?"""
-        
-        sanitized_id = sanitize_input(request_id)
-
-        cursor.execute(sql_query, (sanitized_id,))
-        
-        row = cursor.fetchone()
-
-        if row:
-            column_names = [column[0] for column in cursor.description]
-            record = dict(zip(column_names, row))
-            
-            # Decrypt 'PayRate' in the record
-            if 'PayRate' in record:
-                decrypted_value_str = decrypt_aes_cbc(str(record['PayRate']))
-                
-                # Check if decrypted_value_str is None or empty after decryption
-                if decrypted_value_str is None or decrypted_value_str == '':
-                    del record['PayRate'] # Drop the key if empty
-                    print(f"PayRate for record ID {request_id} was empty after decryption and has been dropped.")
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM OnBoardRequestForm WHERE submission_id = ?", (submission_id,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            record = dict(zip([c[0] for c in cur.description], row))
+            if "PayRate" in record:
+                dec = decrypt_aes_cbc(str(record["PayRate"]))
+                if not dec:
+                    record.pop("PayRate", None)
                 else:
-                    record['PayRate'] = decrypted_value_str
-                    # Convert back to numeric if appropriate
                     try:
-                        # Attempt conversion to float, if that fails, try int, otherwise keep as string
-                        if '.' in record['PayRate']:
-                            record['PayRate'] = float(record['PayRate'])
-                        else:
-                            record['PayRate'] = int(record['PayRate'])
-                    except (ValueError, TypeError):
-                        pass # Keep as string if conversion fails
+                        record["PayRate"] = float(dec) if "." in dec else int(dec)
+                    except Exception:
+                        record["PayRate"] = dec
             return record
-        else:
-            return None
-
     except Exception as e:
-        print(f"An error occurred fetching record by ID (with decryption): {e}")
-        traceback.print_exc()
-        return None
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
-def insert_onboard_request(request_data: dict):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+        return handle_db_exception("get_onboard_request_by_id", e, [])
+        
+def insert_onboard_request(request_data: Dict[str, Any]) -> Optional[int]:
     try:
-        request_data["UpdatedAt"] = datetime.datetime.now()
-        request_data["CreatedAt"] = datetime.datetime.now()
+        # Copy request data and filter out primary key fields
+        request_data = {
+            k: v
+            for k, v in (request_data or {}).items()
+            if isinstance(k, str) and k.lower() not in {"id", "submission_id"}
+        }
 
-        # Sanitize and optionally encrypt sensitive fields
-        sanitized_data = {}
+        # Add timestamps
+        now = datetime.datetime.utcnow()
+        request_data["UpdatedAt"] = now
+        request_data["CreatedAt"] = now
+
+        # Sanitize data
+        sanitized = {}
         for k, v in request_data.items():
-            if k.lower() == "payrate":  # adjust field name if needed
-                sanitized_data[k] = encrypt_aes_cbc(str(v))
+            if k.lower() == "payrate":
+                sanitized[k] = encrypt_aes_cbc(str(v))
+            elif k.lower() == "email":
+                sanitized[k] = str(v).strip()
             else:
-                sanitized_data[k] = sanitize_input(v)
+                sanitized[k] = sanitize_input(v)
 
-        columns = ', '.join(f"[{k}]" for k in sanitized_data.keys())
-        placeholders = ', '.join(['?' for _ in sanitized_data])
-        values = list(sanitized_data.values())
+        valid_columns = [
+        "Type",
+        "adminSpField",
+        "ProjectedStartDate",
+        "LegalFirstName",
+        "LegalMiddleName",
+        "LegalLastName",
+        "Suffix",
+        "employee_email",
+        "PositionTitle",
+        "Manager",
+        "Department",
+        "Location",
+        "PayRateType",
+        "PayRate",
+        "AdditionType",
+        "env",
+        "IsReHire",
+        "IsDriver",
+        "EmployeeID_Requested",
+        "PurchasingCard_Requested",
+        "GasCard_Requested",
+        "EmailAddress_Provided",
+        "MobilePhone_Requested",
+        "TLCBonusEligible",
+        "NoteField",
+        "Createdby",
+        "CreatedAt",
+        "UpdatedAt",
+        ]
+        global env
+        sanitized["env"] = env
 
-        insert_query = f"""
-        INSERT INTO OnBoardRequestForm ({columns})
-        OUTPUT INSERTED.Id
-        VALUES ({placeholders})
-        """
-        cursor.execute(insert_query, values)
-        new_id = cursor.fetchone()[0]
-        conn.commit()
-        return new_id
+        # 3️⃣ Rebuild in the exact order of valid_columns
+        sanitized = {col: sanitized[col] for col in valid_columns if col in sanitized}
+
+        # Build SQL
+        cols = ", ".join(f"[{k}]" for k in sanitized.keys())
+        vals = ", ".join("?" for _ in sanitized)
+        sql = f"INSERT INTO OnBoardRequestForm ({cols}) VALUES ({vals})"
+
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(sql, tuple(sanitized.values()))
+            print(sql, tuple(sanitized.values()))
+
+            # If table has an identity column, fetch new ID
+            new_id = None
+            try:
+                cur.execute("SELECT SCOPE_IDENTITY()")
+                new_id = cur.fetchone()[0]
+            except Exception:
+                pass
+
+            conn.commit()
+            return new_id
 
     except Exception as e:
-        print(f"[INSERT] Error: {e}")
+        print(f"[insert_onboard_request] {e}")
         traceback.print_exc()
-        return None
-    finally:
-        cursor.close()
-        conn.close()
-
-def update_onboard_request(id: int, update_data: dict):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+        raise
+    
+def update_onboard_request(submission_id: uuid.UUID, update_data: Dict[str, Any]) -> bool:
     try:
-        update_data.pop("Id", None)
-        update_data["UpdatedAt"] = datetime.datetime.now()
-        sanitized_data = {}
-        for k, v in update_data.items():
-            if k.lower() == "payrate":
-                sanitized_data[k] = encrypt_aes_cbc(str(v))
+        # 1️⃣ Normalize incoming keys (trim whitespace etc.)
+        cleaned = {
+            (k.strip() if isinstance(k, str) else k): v
+            for k, v in update_data.items()
+        }
+
+        # 2️⃣ Remove Id/submission_id from being updated
+        cleaned = {
+            k: v
+            for k, v in cleaned.items()
+            if not (isinstance(k, str) and k.lower() in {"Id","submission_id"})
+        }
+
+        # 3️⃣ Server-side timestamp
+        cleaned["UpdatedAt"] = datetime.datetime.now(datetime.timezone.utc)
+
+        # 4️⃣ Sanitize each value
+        sanitized: Dict[str, Any] = {}
+        for k, v in cleaned.items():
+            if not isinstance(k, str):
+                continue
+            key_norm = k.lower()
+            if key_norm == "payrate":
+                sanitized[k] = encrypt_aes_cbc(str(v))
+            elif key_norm in {"email", "employee_email", "emailaddress_provided"}:
+                sanitized[k] = str(v).strip()
             else:
-                sanitized_data[k] = sanitize_input(v)
+                sanitized[k] = sanitize_input(v)
 
-        set_clause = ', '.join([f"[{key}] = ?" for key in sanitized_data.keys()])
-        values = list(sanitized_data.values())
-        values.append(id)
+        # 5️⃣ Full column whitelist (explicitly defined for safety)
+        valid_columns = [
+            "Type",
+            "adminSpField",
+            "ProjectedStartDate",
+            "LegalFirstName",
+            "LegalMiddleName",
+            "LegalLastName",
+            "Suffix",
+            "employee_email",
+            "PositionTitle",
+            "Manager",
+            "Department",
+            "Location",
+            "PayRateType",
+            "PayRate",
+            "AdditionType",
+            "env",
+            "IsReHire",
+            "IsDriver",
+            "EmployeeID_Requested",
+            "PurchasingCard_Requested",
+            "GasCard_Requested",
+            "EmailAddress_Provided",
+            "MobilePhone_Requested",
+            "TLCBonusEligible",
+            "NoteField",
+            "Createdby",
+            "CreatedAt",
+            "UpdatedAt",
+        ]
 
-        update_query = f"""
+        # 6️⃣ Keep only known columns
+        sanitized = {k: v for k, v in sanitized.items() if k in valid_columns}
+
+        if not sanitized:
+            print("⚠️ No valid fields to update.")
+            return False
+
+        # 7️⃣ Construct SQL safely
+        set_clause = ", ".join(f"[{col}] = ?" for col in sanitized.keys())
+        sql = f"""
         UPDATE OnBoardRequestForm
         SET {set_clause}
-        WHERE Id = ?
+        WHERE submission_id = ?
         """
 
-        cursor.execute(update_query, values)
-        conn.commit()
-        manage_tasks_after_submission_update(id, update_data)
-        return cursor.rowcount > 0
+        # Add parameters (in order)
+        params = list(sanitized.values()) + [uuid.UUID(str(submission_id))]
+
+        # 8️⃣ Execute
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            print(f"[SQL EXEC]: {sql}")
+            print(f"[PARAMS]: {tuple(params)}")
+            cur.execute(sql, tuple(params))
+            conn.commit()
+            ok = (cur.rowcount or 0) > 0
+        return ok
 
     except Exception as e:
-        print(f"[UPDATE] Error: {e}")
+        print(f"[update_onboard_request] {e}")
         traceback.print_exc()
-        return False
-    finally:
-        cursor.close()
-        conn.close()
+        raise
 
-# --- DELETE Operation ---
-def delete_onboard_request(id: int):
-    """
-    Deletes an onboarding request from the OnBoardRequestForm table.
-    Uses parameterized query and includes row-level locking consideration.
-    Assumes 'Id' is the primary key.
-    """
-    conn = None
-    cursor = None
+def delete_onboard_request(id: int) -> bool:
     try:
-        # Sanitize the ID, though for int it's less critical for injection
-        # but good for consistency and catching unexpected types.
-        sanitized_id = sanitize_input(id)
-
-        sql_query = "DELETE FROM OnBoardRequestForm WHERE Id = ?" # Use 'Id' as per table schema
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Similar to UPDATE, the DELETE statement itself will acquire necessary locks.
-        # Explicit locking hints like WITH (ROWLOCK) can be added if needed for specific
-        # database behavior or complex transactions.
-
-        cursor.execute(sql_query, sanitized_id)
-        conn.commit()
-        print(f"Record with Id {id} deleted successfully.")
-        return cursor.rowcount > 0
-    except ValueError as ve:
-        print(f"Sanitization error: {ve}")
-        return False
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM OnBoardRequestForm WHERE submission_id = ?", (sanitize_input(id),))
+            conn.commit()
+            return cur.rowcount > 0
     except Exception as e:
-        print(f"An error occurred during DELETE: {e}")
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
-# --- Global In-Memory Task Database (Moved from app.py) ---
-global tasks_db
-tasks_db = []
-
-TASKS_JSON_FILE = 'tasks.json'
-
-def load_tasks_from_json():
-    """
-    Loads tasks from a JSON file into the in-memory tasks_db.
-    If the file does not exist or is empty, tasks_db remains empty.
-    """
-    global tasks_db
-    if os.path.exists(TASKS_JSON_FILE) and os.path.getsize(TASKS_JSON_FILE) > 0:
-        try:
-            with open(TASKS_JSON_FILE, 'r') as f:
-                loaded_tasks = json.load(f)
-                # Clear existing in-memory tasks and load from file
-                tasks_db.clear()
-                tasks_db.extend(loaded_tasks)
-                print(f"Loaded {len(tasks_db)} tasks from {TASKS_JSON_FILE}")
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON from {TASKS_JSON_FILE}: {e}")
-        except Exception as e:
-            print(f"An unexpected error occurred while loading tasks from JSON: {e}")
-    else:
-        print(f"'{TASKS_JSON_FILE}' not found or is empty. Starting with an empty task list.")
-
-def save_tasks_to_json():
-    """
-    Saves the current in-memory tasks_db to a JSON file.
-    """
-    try:
-        with open(TASKS_JSON_FILE, 'w') as f:
-            json.dump(tasks_db, f, indent=4)
-        print(f"Saved {len(tasks_db)} tasks to {TASKS_JSON_FILE}")
-    except Exception as e:
-        print(f"Error saving tasks to {TASKS_JSON_FILE}: {e}")
-
-# --- Helper functions for in-memory tasks (Moved from app.py, MODIFIED for string IDs) ---
-def find_task_by_id(task_id: str):
-    """Finds a task by its composite string ID."""
-    for task in tasks_db:
-        if task.get('id') == task_id:
-            return task
-    return None
-
-def remove_task_by_id(task_id: str):
-    """
-    Removes a task from the in-memory database by its composite string ID.
-    Sends an SMS notification if the task is found and removed.
-    """
-    global tasks_db
-    task_to_remove = find_task_by_id(task_id) # Find the task before removing it
-    
-    initial_len = len(tasks_db)
-    tasks_db = [task for task in tasks_db if task.get('id') != task_id]
-    
-    if len(tasks_db) < initial_len:
-        print(f"Task with ID '{task_id}' removed from in-memory DB.")
-        save_tasks_to_json() # Save changes immediately
-
-        # --- NEW SMS SENDING FOR DELETION ---
-        if task_to_remove:
-            task_type = task_to_remove.get('task_type')
-            config = next((c for k, c in TASK_CONFIG.items() if c['task_type'] == task_type), None)
-            
-            if config and 'to_phone' in config and 'sms_delete_message_template' in config:
-                sms_message = config['sms_delete_message_template'].format(
-                    employee_full_name=task_to_remove.get('employee_full_name', 'N/A'),
-                    onboarding_id=task_to_remove.get('related_onboarding_id', 'N/A'),
-                    task_name=task_to_remove.get('name', 'N/A')
-                )
-                send_sms_notification(config['to_phone'], sms_message)
-                print(f"ACTION: SMS SENT for deleted task '{task_to_remove.get('name')}' (ID: {task_id}).")
-        return True
-    return False
-
-def update_task_in_db_list(task_obj: dict, update_data: dict): #
-    if not task_obj or not isinstance(task_obj, dict): #
-        print("Error: Invalid task object provided for update.") #
-        return False #
-
-    old_status = task_obj.get('Status') #
-
-    for key, value in update_data.items(): #
-        if key != 'id': # Prevent updating the ID
-            task_obj[key] = value #
-    task_obj['updated_at'] = datetime.datetime.now().isoformat() #
-    print(f"Task '{task_obj.get('name')}' (ID: {task_obj.get('id')}) updated in-memory.") #
-
-    new_status = task_obj.get('Status') #
-
-    if old_status != 'Cancelled' and new_status == 'Cancelled': #
-        task_type = task_obj.get('task_type') #
-        config = next((c for k, c in TASK_CONFIG.items() if c['task_type'] == task_type), None) #
-
-        if config and 'to_phone' in config and 'sms_delete_message_template' in config: #
-            sms_message = config['sms_delete_message_template'].format( #
-                employee_full_name=task_obj.get('employee_full_name', 'N/A'), #
-                onboarding_id=task_obj.get('related_onboarding_id', 'N/A'), #
-                task_name=task_obj.get('name', 'N/A') #
-            )
-            send_sms_notification(config['to_phone'], sms_message) #
-            print(f"ACTION: SMS SENT for cancelled task '{task_obj.get('name')}' (ID: {task_obj.get('id')}).") #
-
-    save_tasks_to_json() # Save changes immediately
-    return True #
-
-def find_task_by_employee_and_type(employee_full_name: str, task_type: str, related_onboarding_id: int):
-    """
-    Finds an existing task in tasks_db for a given employee, task type, and onboarding ID.
-    """
-    for task in tasks_db:
-        if (task.get('employee_full_name') == employee_full_name and
-                task.get('task_type') == task_type and
-                task.get('related_onboarding_id') == related_onboarding_id):
-            return task
-    return None
-
-def add_task_to_db_list(onboarding_id: int, short_code: str, task_details: dict):
-    """
-    Adds a new task to the in-memory tasks_db with a composite string ID.
-    Sends an SMS for new task creation.
-    """
-    composite_id = f"ONB-{onboarding_id}-{short_code}"
-    
-    if find_task_by_id(composite_id):
-        print(f"Warning: Task with ID '{composite_id}' already exists. Skipping creation.")
-        return
-
-    task_details['id'] = composite_id
-    task_details.setdefault('Status', 'Open') # Default to Open
-    task_details.setdefault('created_at', datetime.datetime.now().isoformat())
-    task_details.setdefault('updated_at', datetime.datetime.now().isoformat())
-    
-    tasks_db.append(task_details)
-    print(f"Added task to in-memory DB: {task_details['name']} (ID: {task_details['id']})")
-    
-    # --- SMS SENDING FOR NEW TASK (similar to manage_onboarding_tasks logic) ---
-    task_type = task_details.get('task_type')
-    config = next((c for k, c in TASK_CONFIG.items() if c['task_type'] == task_type), None)
-
-    if config and 'to_phone' in config and 'sms_message_template' in config:
-        # Check if the task is being added with an 'Open' status, or other statuses that warrant a "new task" SMS
-        if task_details.get('Status') == 'Open': # Only send new task SMS if truly 'Open'
-            sms_message = config['sms_message_template'].format(
-                employee_full_name=task_details.get('employee_full_name', 'N/A'), 
-                onboarding_id=task_details.get('related_onboarding_id', 'N/A'),
-                manager=task_details.get('manager', 'N/A')
-            )
-            send_sms_notification(config['to_phone'], sms_message)
-            print(f"ACTION: SMS SENT for new task '{task_details.get('name')}' (ID: {task_details.get('id')}).")
-    save_tasks_to_json()
-
-
-# --- MODIFIED: Task Configuration Mapping (Moved from app.py) ---
-# Now using numeric short codes as per your specific mapping.
-def send_sms_notification(to_phone_number: str, message_body: str):
-    """
-    Sends an SMS notification using Twilio.
-    """
-    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
-        print("ERROR: Twilio credentials not fully set. Cannot send SMS.")
-        return False
-
-    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    try:
-        message = client.messages.create(
-            body=message_body,
-            from_=16893004727,
-            to=to_phone_number
-        )
-        print(f"Twilio SMS sent to {to_phone_number}. Message SID: {message.sid}")
-        return True
-    except Exception as e:
-        print(f"ERROR: Failed to send Twilio SMS to {to_phone_number}: {e}")
+        print(f"[delete_onboard_request] {e}")
         traceback.print_exc()
         return False
 
-# --- MODIFIED: Task Configuration Mapping (All tasks now include specific email and phone) ---
-# Now using numeric short codes as per your specific mapping.
-TASK_CONFIG = {
-    'EmployeeID_Requested': {
-        'task_type': 'Employee ID Issuance',
-        'name_prefix': 'Issue Employee ID for',
-        'assignedTo': 'HR/Payroll',
-        'description': 'Generate and assign unique employee identification.',
-        'short_code': '1',
-        'to_email': 'yuanchichung@guardianfueltech.com',
-        'to_phone': '19046767222', # ADDED
-        'email_subject': 'Task: Employee ID Issuance for {employee_full_name}',
-        'email_body_template': 'Please issue an Employee ID for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.',
-        'sms_message_template': 'Task: Employee ID for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}.' # ADDED
-    },
-    'PurchasingCard_Requested': {
-        'task_type': 'Purchasing Card Issuance',
-        'name_prefix': 'Order Purchasing Card for',
-        'assignedTo': 'Finance',
-        'description': 'Process application and order employee purchasing card.',
-        'short_code': '2',
-        'to_email': 'yuanchichung@guardianfueltech.com',
-        'to_phone': '19046767222', # ADDED
-        'email_subject': 'Task: Purchasing Card Request for {employee_full_name}',
-        'email_body_template': 'Please order a Purchasing Card for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.',
-        'sms_message_template': 'Task: Purchasing Card for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}.' # ADDED
-    },
-    'GasCard_Requested': {
-        'task_type': 'Gas Card Issuance',
-        'name_prefix': 'Order Gas Card for',
-        'assignedTo': 'Fleet Management',
-        'description': 'Process application and order employee gas card.',
-        'short_code': '3',
-        'to_email': 'yuanchichung@guardianfueltech.com',
-        'to_phone': '19046767222', # ADDED
-        'email_subject': 'Task: Gas Card Request for {employee_full_name}',
-        'email_body_template': 'Please order a Gas Card for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.',
-        'sms_message_template': 'Task: Gas Card for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}.' # ADDED
-    },
-    'EmailAddress_Provided': {
-        'task_type': 'Email Account Setup',
-        'name_prefix': 'Create Email Account for',
-        'assignedTo': 'IT Department',
-        'description': 'Set up new corporate email address and access.',
-        'short_code': '4',
-        'to_email': 'yuanchichung@guardianfueltech.com',
-        'to_phone': '19046767222', # ADDED
-        'email_subject': 'Task: New Employee Email Account Setup Request for {employee_full_name}',
-        'email_body_template': 'Please create an email account for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.',
-        'sms_message_template': 'Task: Email Account for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}.' # ADDED
-    },
-    'MobilePhone_Requested': { 
-        'task_type': 'Mobile Phone Issuance',
-        'name_prefix': 'Order Mobile Phone for',
-        'assignedTo': 'IT Department', 
-        'description': 'Process request and order corporate mobile phone.',
-        'short_code': '5',
-        'to_email': 'yuanchichung@guardianfueltech.com',
-        'to_phone': '19046767222', # ADDED
-        'email_subject': 'Task: Mobile Phone Request for {employee_full_name}',
-        'email_body_template': 'Please order a Mobile Phone for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.',
-        'sms_message_template': 'Task: Mobile Phone for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}.' # ADDED
-    },
-    'TLCBonusEligible': {
-        'task_type': 'TLC Bonus Eligibility',
-        'name_prefix': 'Verify TLC Bonus Eligibility for',
-        'assignedTo': 'HR/Payroll',
-        'description': 'Review and confirm employee eligibility for TLC bonus program.',
-        'short_code': '6',
-        'to_email': 'yuanchichung@guardianfueltech.com',
-        'to_phone': '19046767222', # ADDED
-        'email_subject': 'Task: TLC Bonus Eligibility for {employee_full_name}',
-        'email_body_template': 'Please verify TLC Bonus Eligibility for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.',
-        'sms_message_template': 'Task: TLC Bonus for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}.' # ADDED
-    }
-}
+# ------------------------------------------------------------------------------
+# Employee Status Changes table (encrypt selected columns)
+# ------------------------------------------------------------------------------
+def manage_EmployeeStatusChanges(request_data: Dict[str, Any]) -> Tuple[bool, str]:
+    op = "UPDATE" if request_data.get("SubmissionID") else "INSERT"
+    processed = request_data.copy()
+    for col in ["CurrentRate_E", "NewRate_E"]:
+        if col in processed and processed[col] is not None:
+            processed[col] = encrypt_aes_cbc(processed[col])
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            if op == "INSERT":
+                cols = [c for c in processed.keys() if c not in ["SubmissionID", "SubmittedAt"]]
+                q = f"""
+                    INSERT INTO [dbo].[EmployeeStatusChanges] ({", ".join("[" + c + "]" for c in cols)})
+                    VALUES ({", ".join("?" for _ in cols)})
+                """
+                cur.execute(q, tuple(processed[c] for c in cols))
+                conn.commit()
+                return True, "Record inserted successfully."
+            else:
+                sid = processed.pop("SubmissionID")
+                cols = [c for c in processed.keys() if c != "SubmittedAt"]
+                sets = ", ".join(f"[{c}] = ?" for c in cols)
+                q = f"UPDATE [dbo].[EmployeeStatusChanges] SET {sets} WHERE [SubmissionID] = ?"
+                cur.execute(q, tuple(processed[c] for c in cols) + (sid,))
+                conn.commit()
+                if cur.rowcount == 0:
+                    return False, f"No record found with SubmissionID: {sid}."
+                return True, f"Record {sid} updated."
+    except Exception as e:
+        print(f"[manage_EmployeeStatusChanges] {e}")
+        traceback.print_exc()
+        return False, f"Error during {op}: {e}"
 
-# --- Centralized Task Management Logic (Moved from app.py) ---
-def manage_onboarding_tasks(onboarding_request_data: dict):
-    """
-    Manages (creates or updates) tasks in the in-memory tasks_db
-    based on the fields of the onboarding request.
-    This function should be called after a successful insert or update
-    of an OnBoardRequestForm record in the SQL database.
-    """
-    employee_first_name = onboarding_request_data.get('LegalFirstName', 'N/A')
-    employee_last_name = onboarding_request_data.get('LegalLastName', 'N/A')
-    employee_full_name = f"{employee_first_name} {employee_last_name}"
-    onboarding_id = onboarding_request_data.get('Id') # This is the SQL DB ID
-    manager_name = onboarding_request_data.get('Manager', 'N/A') # Capture manager name
+# ------------------------------------------------------------------------------
+# Orchestration: create/update tasks based on onboarding flags
+# Uses MR_OnBoardCategory rows as the source-of-truth (falls back to TASK_CONFIG if table empty)
+# ------------------------------------------------------------------------------
+# Optional local fallback (kept minimal; you can delete if Category table is fully populated)
+FALLBACK_TASK_CONFIG: Dict[str, Dict[str, Any]] = {}
 
+def _get_category_map(env: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    m = load_task_categories(env=env)
+    return m if m else FALLBACK_TASK_CONFIG
 
-    if onboarding_id is None:
-        print("Error: Onboarding ID is missing. Cannot manage tasks.")
-        return
-
-    print(f"\n--- Managing tasks for onboarding ID {onboarding_id}, Employee: {employee_full_name} ---")
-
-    for flag_field, config in TASK_CONFIG.items():
-        # Check if the field is present and evaluate its truthiness.
-        # Handle cases where value might be boolean, string "true"/"false", etc.
-        is_requested = str(onboarding_request_data.get(flag_field, 'False')).lower() in ['true', '1']
-        
-        task_type = config['task_type']
-        short_code = config['short_code']
-
-        existing_task = find_task_by_employee_and_type(employee_full_name, task_type, onboarding_id)
-
-        if is_requested:
-            if not existing_task:
-                # Prepare task details including specific email/phone if applicable
-                new_task_details = {
-                    'name': f"{config['name_prefix']} {employee_full_name}",
-                    'description': f"{config['description']} (Onboarding ID: {onboarding_id})",
-                    'task_type': task_type,
-                    'assignedTo': config['assignedTo'],
-                    'employee_full_name': employee_full_name,
-                    'related_onboarding_id': onboarding_id,
-                    'manager': manager_name,
-                    'onboarding_id': onboarding_id # Redundant but explicit for templates
-                }
-                # Add specific contact info if available in config
-                if 'to_email' in config:
-                    new_task_details['to_email'] = config['to_email']
-                if 'to_phone' in config:
-                    new_task_details['to_phone'] = config['to_phone']
-
-                add_task_to_db_list(onboarding_id, short_code, new_task_details)
-                print(f"ACTION: New task '{new_task_details['name']}' created.")
-                
-                # Send email/SMS for each action
-                if 'to_email' in config and 'email_subject' in config and 'email_body_template' in config:
-                    email_subject = config['email_subject'].format(employee_full_name=employee_full_name)
-                    email_body = config['email_body_template'].format(
-                        employee_full_name=employee_full_name, 
-                        onboarding_id=onboarding_id, 
-                        manager=manager_name
-                    )
-                    # Assuming an email sending function `send_email_notification` exists or would be implemented.
-                    # print(f"ACTION: EMAIL SENT to {config['to_email']} for '{task_type}' - Subject: '{email_subject}' - Body: '{email_body}'")
-                    # Placeholder for actual email sending call
-                    print(f"SIMULATING EMAIL: To: {config['to_email']}, Subject: {email_subject}, Body: {email_body}")
-                
-                # --- NEW SMS SENDING CALL ---
-                if 'to_phone' in config and 'sms_message_template' in config:
-                    sms_message = config['sms_message_template'].format(
-                        employee_full_name=employee_full_name, 
-                        onboarding_id=onboarding_id, 
-                        manager=manager_name
-                    )
-                    send_sms_notification(config['to_phone'], sms_message)
-
-
-            elif existing_task.get('Status') in ['N/A', 'Cancelled', 'Completed']:
-                # Reset status to Open if it was previously closed and now requested
-                update_task_in_db_list(existing_task, {'Status': 'Open', 'manager': manager_name}) 
-                print(f"ACTION: Task '{existing_task.get('name')}' (ID: {existing_task.get('id')}) re-activated to 'Open'.")
-                # Send notification for re-activation
-                if 'to_email' in config and 'email_subject' in config and 'email_body_template' in config:
-                    email_subject = f"Task Re-activated: {config['email_subject'].format(employee_full_name=employee_full_name)}"
-                    email_body = f"The task '{existing_task.get('name')}' for {employee_full_name} (Onboarding ID: {onboarding_id}) has been re-activated to 'Open'. Manager: {manager_name}."
-                    # print(f"ACTION: EMAIL SENT to {config['to_email']} for '{task_type}' re-activation - Subject: '{email_subject}' - Body: '{email_body}'")
-                    print(f"SIMULATING EMAIL: To: {config['to_email']}, Subject: {email_subject}, Body: {email_body}")
-
-                # # --- NEW SMS SENDING CALL --- exception give can try
-                # if 'to_phone' in config and 'sms_message_template' in config:
-                #     sms_message = f"Task Re-activated: '{existing_task.get('name')}' for {employee_full_name} (ID: {onboarding_id})."
-                #     send_sms_notification(config['to_phone'], sms_message)
-
-            elif existing_task.get('manager') != manager_name: 
-                # Only update manager if it changed and task is already open
-                update_task_in_db_list(existing_task, {'manager': manager_name})
-                print(f"ACTION: Updated manager for task '{existing_task.get('name')}' (ID: {existing_task.get('id')}) to '{manager_name}'.")
-                # Send notification for manager change
-                if 'to_email' in config and 'email_subject' in config and 'email_body_template' in config:
-                    email_subject = f"Manager Updated: {config['email_subject'].format(employee_full_name=employee_full_name)}"
-                    email_body = f"The manager for task '{existing_task.get('name')}' for {employee_full_name} (Onboarding ID: {onboarding_id}) has been updated to {manager_name}."
-                    # print(f"ACTION: EMAIL SENT to {config['to_email']} for '{task_type}' manager update - Subject: '{email_subject}' - Body: '{email_body}'")
-                    print(f"SIMULATING EMAIL: To: {config['to_email']}, Subject: {email_subject}, Body: {email_body}")
-
-                # --- NEW SMS SENDING CALL ---
-                if 'to_phone' in config and 'sms_message_template' in config:
-                    sms_message = f"Manager Updated: Task '{existing_task.get('name')}' for {employee_full_name} (ID: {onboarding_id}) to {manager_name}."
-                    send_sms_notification(config['to_phone'], sms_message)
-
-        else: # is_requested is False
-            if existing_task and existing_task.get('Status') not in ['N/A', 'Cancelled', 'Completed']:
-                # Mark as N/A if it was previously active but no longer requested
-                update_task_in_db_list(existing_task, {'Status': 'N/A', 'description': existing_task['description'] + ' (No longer required)'})
-                print(f"ACTION: Marked task '{existing_task.get('name')}' (ID: {existing_task.get('id')}) as N/A.")
-                # Send notification for marking as N/A
-                if 'to_email' in config and 'email_subject' in config and 'email_body_template' in config:
-                    email_subject = f"Task Marked N/A: {config['email_subject'].format(employee_full_name=employee_full_name)}"
-                    email_body = f"The task '{existing_task.get('name')}' for {employee_full_name} (Onboarding ID: {onboarding_id}) is no longer required and has been marked 'N/A'."
-                    # print(f"ACTION: EMAIL SENT to {config['to_email']} for '{task_type}' marked N/A - Subject: '{email_subject}' - Body: '{email_body}'")
-                    print(f"SIMULATING EMAIL: To: {config['to_email']}, Subject: {email_subject}, Body: {email_body}")
-
-                # --- NEW SMS SENDING CALL ---
-                if 'to_phone' in config and 'sms_message_template' in config:
-                    sms_message = f"Task Marked N/A: '{existing_task.get('name')}' for {employee_full_name} (ID: {onboarding_id})."
-                    send_sms_notification(config['to_phone'], sms_message)
-    print("--- Task management complete ---")
-
-def manage_tasks_after_submission_update(onboarding_id: int, new_submission_data: dict):
-    """
-    Orchestrates the addition, removal (by cancelling), and update of tasks
-    based on a new or updated onboarding submission.
-    """
-    print(f"\n--- Managing tasks for Onboarding ID: {onboarding_id} ---")
-
-    employee_full_name = f"{new_submission_data.get('LegalFirstName', '')} {new_submission_data.get('LegalLastName', '')}".strip()
-    if not employee_full_name:
-        print(f"Warning: Cannot manage tasks for Onboarding ID {onboarding_id} without employee name.")
-        return
-
-    # --- Section 1: Conditional Task Creation/Cancellation ---
-    # Loop through each potential task type and its corresponding form field.
-
-    # 1. Employee ID Task
-    if new_submission_data.get('EmployeeID_Requested') == 'Yes': # Assuming 'Yes'/'No' for checkboxes
-        task_type = "HR"
-        short_code = "EID"
-        task_name = "Request Employee ID"
-        task_details = {
-            "name": task_name,
-            "description": new_submission_data.get('employeeID_RequestedDescription', ''), # From image_46adf4.jpg
-            "task_type": task_type,
-            "assignedTo": "HR/Payroll",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "hr@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else: # If Employee ID is no longer requested
-        task_id_to_check = f"ONB-{onboarding_id}-EID"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']: # Don't re-cancel or remove completed tasks
-            print(f"Employee ID no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 2. Purchasing Card Task
-    if new_submission_data.get('PurchasingCard_Requested') == 'Yes': # Assuming 'Yes'/'No'
-        task_type = "Finance"
-        short_code = "PCARD"
-        task_name = "Request Purchasing Card"
-        task_details = {
-            "name": task_name,
-            "description": new_submission_data.get('purchasingCard_RequestedDescription', ''), # From image_46adf4.jpg
-            "task_type": task_type,
-            "assignedTo": "Finance",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "finance@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-PCARD"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"Purchasing Card no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 3. Gas Card Task
-    if new_submission_data.get('GasCard_Requested') == 'Yes': # Assuming 'Yes'/'No'
-        task_type = "Fleet"
-        short_code = "GCARD"
-        task_name = "Request Gas Card"
-        task_details = {
-            "name": task_name,
-            "description": new_submission_data.get('gasCard_RequestedDescription', ''), # From image_46adf4.jpg
-            "task_type": task_type,
-            "assignedTo": "Fleet Management",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "fleet@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-GCARD"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"Gas Card no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 4. TLC Bonus Eligible Task
-    if new_submission_data.get('TLCBonusEligible') == 'Yes': # Assuming 'Yes'/'No'
-        task_type = "HR" # Or appropriate department
-        short_code = "TLCBONUS"
-        task_name = "Verify TLC Bonus Eligibility"
-        task_details = {
-            "name": task_name,
-            "description": new_submission_data.get('tlcBonusEligibleDescription', ''), # From image_46adf4.jpg
-            "task_type": task_type,
-            "assignedTo": "HR/Payroll",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "hr@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-TLCBONUS"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"TLC Bonus no longer eligible. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer eligible in form update'})
-
-
-    # 5. Mobile Phone Task (Assuming a field like 'MobilePhone_Requested')
-    if new_submission_data.get('MobilePhone_Requested') == 'Yes':
-        task_type = "IT"
-        short_code = "MOBILE"
-        task_name = "Provide Mobile Phone"
-        task_details = {
-            "name": task_name,
-            "description": new_submission_data.get('mobilePhone_RequestedDescription', ''),
-            "task_type": task_type,
-            "assignedTo": "IT",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "it@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-MOBILE"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"Mobile Phone no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 6. VPN Access Task (Assuming a field like 'vpnAccess')
-    if new_submission_data.get('vpnAccess') == 'Yes':
-        task_type = "IT"
-        short_code = "VPN"
-        task_name = "Grant VPN Access"
-        task_details = {
-            "name": task_name,
-            "description": "Provide VPN access to employee.",
-            "task_type": task_type,
-            "assignedTo": "IT",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "it@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-VPN"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"VPN access no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 7. WiFi Domain Access Task (Assuming a field like 'wifiDomain')
-    if new_submission_data.get('wifiDomain') == 'Yes': # Or if specific domain chosen
-        task_type = "IT"
-        short_code = "WIFI"
-        task_name = "Grant WiFi Domain Access"
-        task_details = {
-            "name": task_name,
-            "description": "Provide WiFi domain access to employee.",
-            "task_type": task_type,
-            "assignedTo": "IT",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "it@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-WIFI"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"WiFi Domain access no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 8. Citrix Access Task (Assuming a field like 'citrixAccess')
-    if new_submission_data.get('citrixAccess') == 'Yes':
-        task_type = "IT"
-        short_code = "CITRIX"
-        task_name = "Grant Citrix Access"
-        task_details = {
-            "name": task_name,
-            "description": "Provide Citrix access to employee.",
-            "task_type": task_type,
-            "assignedTo": "IT",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "it@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-CITRIX"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"Citrix access no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 9. OP Access Task (Assuming a field like 'opAccess')
-    if new_submission_data.get('opAccess') == 'Yes':
-        task_type = "IT"
-        short_code = "OPACC"
-        task_name = "Grant OP Access"
-        task_details = {
-            "name": task_name,
-            "description": "Provide OP access to employee.",
-            "task_type": task_type,
-            "assignedTo": "IT",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "it@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-OPACC"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"OP access no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 10. Computer Task (Assuming a field like 'computer_Needed')
-    if new_submission_data.get('computer_Needed') == 'Yes':
-        task_type = "IT"
-        short_code = "COMPUTER"
-        task_name = "Order/Provide Computer"
-        task_details = {
-            "name": task_name,
-            "description": "Order or provide computer for employee.",
-            "task_type": task_type,
-            "assignedTo": "IT",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "it@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-COMPUTER"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"Computer no longer needed. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer needed in form update'})
-
-
-    # 11. Shirt Task (Assuming a field like 'shirtIncludeSize')
-    if new_submission_data.get('shirtIncludeSize'): # This field might hold the size or 'Yes'
-        task_type = "HR" # Or Facilities/Ops
-        short_code = "SHIRT"
-        task_name = "Order Employee Shirt"
-        task_details = {
-            "name": task_name,
-            "description": f"Order shirt for employee, size: {new_submission_data.get('shirtIncludeSize')}",
-            "task_type": task_type,
-            "assignedTo": "HR/Operations",
-            "employee_full_name": employee_full_name,
-            "related_onboarding_id": onboarding_id,
-            "manager": new_submission_data.get('Manager', 'N/A'),
-            "onboarding_id": onboarding_id,
-            "to_email": "hr@example.com"
-        }
-        add_task_to_db_list(onboarding_id, short_code, task_details)
-    else:
-        task_id_to_check = f"ONB-{onboarding_id}-SHIRT"
-        existing_task = find_task_by_id(task_id_to_check)
-        if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-            print(f"Shirt no longer requested. Cancelling task {task_id_to_check}.")
-            update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': 'No longer requested in form update'})
-
-
-    # 12. Email Distribution Lists (Admin/No Tech, Branch Manager, Sales, etc.)
-    # For email lists, you might create one task per list if they go to different people/teams,
-    # or one consolidated task for "Add to Email Lists". I'll use individual tasks for clarity.
-    email_list_tasks = {
-        'AdminNoTech': {'type': 'IT', 'code': 'EMAIL_ADMIN', 'name': 'Add to Admin/No Tech Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'BranchManager': {'type': 'IT', 'code': 'EMAIL_BM', 'name': 'Add to Branch Manager Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'Sales': {'type': 'IT', 'code': 'EMAIL_SALES', 'name': 'Add to Sales Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'BranchTech': {'type': 'IT', 'code': 'EMAIL_BT', 'name': 'Add to Branch Tech Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'PartsManager': {'type': 'IT', 'code': 'EMAIL_PM', 'name': 'Add to Parts Manager Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'ServiceManager': {'type': 'IT', 'code': 'EMAIL_SM', 'name': 'Add to Service Manager Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'TechGlobal': {'type': 'IT', 'code': 'EMAIL_TG', 'name': 'Add to Tech Global Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'Global': {'type': 'IT', 'code': 'EMAIL_GLOBAL', 'name': 'Add to Global Email List', 'assign': 'IT', 'email': 'it@example.com'},
-        'BranchDispatch': {'type': 'IT', 'code': 'EMAIL_BD', 'name': 'Add to Branch Dispatch Email List', 'assign': 'IT', 'email': 'it@example.com'}
+def _create_task_payload(onboarding_id: uuid.UUID, employee_full_name: str, manager_name: str,
+                         config_row: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "task_id": compose_task_id(onboarding_id, config_row["short_code"]),
+        "name": f"{config_row['name_prefix']} {employee_full_name}",
+        "description": f"{config_row['description']} (Onboarding ID: {onboarding_id})",
+        "task_type": config_row["task_type"],
+        "assignedTo": config_row["assignedTo"],
+        "employee_full_name": employee_full_name,
+        "related_onboarding_id": onboarding_id,
+        "manager": manager_name,
+        "onboarding_id": onboarding_id,
+        "to_email": config_row.get("to_email"),
+        "to_phone": config_row.get("to_phone"),
+        "Status": "Open",
     }
 
-    for field_name, task_info in email_list_tasks.items():
-        # Assuming the form field names match the keys in email_list_tasks (e.g., 'AdminNoTech' is a field in new_submission_data)
-        if new_submission_data.get(field_name) == 'Yes': # Assuming 'Yes'/'No' checkbox value
-            task_details = {
-                "name": task_info['name'],
-                "description": f"Add {employee_full_name} to the {task_info['name']} email distribution list.",
-                "task_type": task_info['type'],
-                "assignedTo": task_info['assign'],
-                "employee_full_name": employee_full_name,
-                "related_onboarding_id": onboarding_id,
-                "manager": new_submission_data.get('Manager', 'N/A'),
-                "onboarding_id": onboarding_id,
-                "to_email": task_info['email']
-            }
-            add_task_to_db_list(onboarding_id, task_info['code'], task_details)
+def manage_onboarding_tasks(onboarding_request_data: Dict[str, Any], env: Optional[str] = None) -> None:
+    """
+    New version: writes tasks to MR_OnBoardTask, creates or updates as needed.
+    Uses MR_OnBoardCategory to know which flags -> which tasks.
+    """
+    emp_first = onboarding_request_data.get("LegalFirstName", "N/A")
+    emp_last  = onboarding_request_data.get("LegalLastName", "N/A")
+    employee_full_name = f"{emp_first} {emp_last}".strip()
+    submission_id = onboarding_request_data.get("submission_id")
+    manager_name  = onboarding_request_data.get("Manager", "N/A")
+
+    if submission_id is None:
+        print("manage_onboarding_tasks: missing onboarding Id")
+        return
+
+    cat = _get_category_map(env)
+    print(f"--- Managing tasks for ONB {submission_id} ({employee_full_name}) ---")
+
+    for flag_field, cfg in cat.items():
+        requested = str(onboarding_request_data.get(flag_field, "False")).lower() in ("true", "1", "yes")
+        existing = db_find_task(employee_full_name, cfg["task_type"], submission_id)
+
+        if requested:
+            payload = _create_task_payload(submission_id, employee_full_name, manager_name, cfg)
+            if not existing:
+                db_insert_task(payload)
+            else:
+                # Re-open or just refresh details/manager
+                fields = {"Status": "Open", "manager": manager_name}
+                update_task_in_db_list(existing["task_id"], fields)
         else:
-            task_id_to_check = f"ONB-{onboarding_id}-{task_info['code']}"
-            existing_task = find_task_by_id(task_id_to_check)
-            if existing_task and existing_task.get('Status') not in ['Completed', 'Cancelled']:
-                print(f"Email list '{task_info['name']}' no longer requested. Cancelling task {task_id_to_check}.")
-                update_task_in_db_list(existing_task, {'Status': 'Cancelled', 'CancellationReason': f'Email list {task_info["name"]} no longer requested'})
+            # Not requested: if exists and active -> mark N/A
+            if existing and existing.get("Status") not in ("N/A", "Cancelled", "Completed"):
+                update_task_in_db_list(existing["task_id"], {
+                    "Status": "N/A",
+                    "description": f"{existing['description']} (No longer required)"
+                })
 
-
-    # --- Section 2: Update existing tasks with changed submission data ---
-    # This loop ensures that if core employee/onboarding details change in the submission,
-    # the corresponding details are updated in *all* associated tasks.
-    for task in tasks_db:
-        if task.get('related_onboarding_id') == onboarding_id:
-            task_updated_in_memory = False # Flag to track if any changes were made to this specific task
-
-            # Update employee name if it changed
-            if task.get('employee_full_name') != employee_full_name:
-                task['employee_full_name'] = employee_full_name
-                task_updated_in_memory = True
-            # Update manager if it changed
-            if task.get('manager') != new_submission_data.get('Manager'):
-                task['manager'] = new_submission_data.get('Manager')
-                task_updated_in_memory = True
-            # Add more fields that tasks might depend on (e.g., new location, department if they are relevant task fields)
-            # if task.get('location') != new_submission_data.get('Location'):
-            #     task['location'] = new_submission_data.get('Location')
-            #     task_updated_in_memory = True
-
-            # If any part of the task was modified in memory, save it to JSON
-            if task_updated_in_memory:
-                # Call update_task_in_db_list which also updates 'updated_at' and saves to JSON
-                update_task_in_db_list(task, task) # Pass the modified task object itself for update
-
-    print(f"--- Task management complete for Onboarding ID: {onboarding_id} ---")
-
-def CF_SP_Emp_Detail_Search(search_term: str = None):
+def seed_tasks_from_json_simple(path: str = None, skip_existing: bool = True) -> dict:
     """
-    Calls the stored procedure CF_SP_Emp_Detail_Search to search for employee
-    details by LDAP Name OR Email.
-
-    Args:
-        search_term (str): The term to search for (e.g., employee name or email).
-                           This term will be passed as a parameter to the stored procedure.
-
-    Returns:
-        pandas.DataFrame: A DataFrame containing matching employee records, or empty DataFrame if none found or error.
+    Read tasks from tasks.json (array) and insert straight into MR_OnBoardTask.
+    Minimal aliasing:
+      - if 'id' present and 'task_id' missing -> task_id = id
+      - if 'submissionid' present and 'submission_id' missing -> submission_id = submissionid
     """
-    conn = None
-    cursor = None
+    path = path or os.getenv("TASKS_JSON_PATH", "tasks.json")
+    summary = {"file": path, "total": 0, "inserted": 0, "skipped": 0, "failed": 0, "failures": []}
+
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Sanitize the search term before passing it to the stored procedure.
-        # It's important to sanitize even for stored procedures to prevent issues
-        # if the SP itself has dynamic SQL or other vulnerabilities.
-        sanitized_term_value = sanitize_input(search_term) if search_term is not None else None
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            raise ValueError("tasks.json must be an array of task objects")
+        summary["total"] = len(data)
 
-        # Use cursor.execute with the EXEC command and '?' placeholder for parameters.
-        # This is a widely supported way to call stored procedures with pyodbc.
-        sp_name = "[GPReporting].[dbo].[CF_SP_Emp_Detail_Search]"
-        
-        # The parameter must be passed as a tuple to cursor.execute, even if single.
-        # If the stored procedure can handle NULL, pass (None,)
-        # If it requires a default value or specific empty string for empty input, adjust here.
-        parameters = (sanitized_term_value,) 
+        for i, task in enumerate(data):
+            try:
+                # minimal aliasing so DB columns line up
+                if "task_id" not in task and "id" in task:
+                    task["task_id"] = task["id"]
+                if "submission_id" not in task and "submissionid" in task:
+                    task["submission_id"] = task["submissionid"]
 
-        sql_command = f"EXEC {sp_name} ?" # SQL command with a single placeholder
+                # optionally skip if already exists
+                if skip_existing:
+                    existing = find_task_by_id(task.get("task_id"))
+                    if existing:
+                        summary["skipped"] += 1
+                        continue
 
-        print(f"Executing Stored Procedure: {sql_command}")
-        print(f"Parameters: {parameters}")
+                ok = db_insert_task(task)
+                if ok:
+                    summary["inserted"] += 1
+                else:
+                    summary["failed"] += 1
+                    summary["failures"].append({"index": i, "reason": "db_insert_task returned False"})
+            except Exception as e:
+                summary["failed"] += 1
+                summary["failures"].append({"index": i, "reason": f"{type(e).__name__}: {e}"})
+                traceback.print_exc()
 
-        # Execute the stored procedure with the parameterized query
-        cursor.execute(sql_command, parameters)
-
-        # After execution, fetch the results
-        rows = cursor.fetchall()
-        column_names = [column[0] for column in cursor.description]
-        
-        paylocity_df = pd.DataFrame.from_records(rows, columns=column_names)
-        return paylocity_df
-
-    except ValueError as ve:
-        print(f"Sanitization or parameter error: {ve}")
-        return pd.DataFrame()
-    except pyodbc.Error as pe:
-        print(f"Database error occurred: {pe}")
-        # It's helpful to print the full error details for debugging database issues
-        print(f"PyODBC Error Info: {pe.args}")
-        return pd.DataFrame()
     except Exception as e:
-        print(f"An unexpected error occurred during Paylocity details search: {e}")
+        summary["failed"] += 1
+        summary["failures"].append({"index": None, "reason": f"{type(e).__name__}: {e}"})
+        traceback.print_exc()
+
+    print(f"[seed_tasks_from_json_simple] file={summary['file']} inserted={summary['inserted']} skipped={summary['skipped']} failed={summary['failed']}")
+    return summary
+# seed_tasks_from_json_simple("tasks.json", skip_existing=True)
+
+def manage_tasks_after_submission_update(onboarding_id: uuid.UUID, updated_submission: Dict[str, Any], env: Optional[str] = None) -> None:
+    """
+    Called after an UPDATE to OnBoardRequestForm — keeps tasks in sync with changed data.
+    """
+    # load current request to get names if not provided
+    record = get_onboard_request_by_id(onboarding_id) or {}
+    # prefer new values if present
+    emp_first = updated_submission.get("LegalFirstName", record.get("LegalFirstName", ""))
+    emp_last  = updated_submission.get("LegalLastName", record.get("LegalLastName", ""))
+    employee_full_name = f"{emp_first} {emp_last}".strip()
+    manager_name = updated_submission.get("Manager", record.get("Manager", "N/A"))
+
+    # run the same orchestration using merged fields
+    merged = {**record, **updated_submission, "submission_id": onboarding_id}
+    manage_onboarding_tasks(merged, env=env)
+
+    # Ensure name/manager updates propagate to all tasks for this onboarding_id
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"UPDATE {TASK_TABLE} SET employee_full_name = ?, manager = ?, updated_at = ? WHERE related_onboarding_id = ?",
+                (employee_full_name, manager_name, datetime.datetime.utcnow(), onboarding_id),
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"[manage_tasks_after_submission_update] propagate names failed: {e}")
+        traceback.print_exc()
+
+# ------------------------------------------------------------------------------
+# Paylocity / employee directory SP (unchanged)
+# ------------------------------------------------------------------------------
+def CF_SP_Emp_Detail_Search(search_term: Optional[str] = None) -> pd.DataFrame:
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            term = sanitize_input(search_term) if search_term is not None else None
+            cur.execute("EXEC [GPReporting].[dbo].[CF_SP_Emp_Detail_Search] ?", (term,))
+            rows = cur.fetchall()
+            cols = [c[0] for c in cur.description]
+            return pd.DataFrame.from_records(rows, columns=cols)
+    except Exception as e:
+        print(f"[CF_SP_Emp_Detail_Search] {e}")
+        traceback.print_exc()
         return pd.DataFrame()
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
-# --- Example Usage (How to test these functions) ---
-# if __name__ == "__main__":
-    # --- IMPORTANT ---
-    # 1. Ensure you have the correct ODBC Driver installed on your system.
-    # 2. Define your table schema for 'OnBoardRequestForm' in your database.
-    # 3. Set the environment variables mentioned at the top of this script
-    #    (serverGFT, databaseGFTSharePoint, usernameSharePointGFT, passwordSharePointGFT, addressGFT).
-
-    # pd.set_option('display.max_rows', 500)
-    # pd.set_option('display.max_columns', 500)
-    # pd.set_option('display.width', 1000)
-
-    # print("--- Testing SELECT ---")
-    # onboard_data = get_onboard_all()
-    # print("Current OnBoardRequestForm data:")
-    # print(onboard_data)
-    # print("-" * 30)
-
-    # print("--- Testing INSERT ---")
-    # new_request_sample = {
-    #     "Type": "Full-time",
-    #     "ProjectedStartDate": "2025-07-15",
-    #     "LegalFirstName": "Alice",
-    #     "LegalMiddleName": "Marie",
-    #     "LegalLastName": "Johnson",
-    #     "Suffix": "Sr.",
-    #     "PositionTitle": "Project Coordinator",
-    #     "Manager": "David Lee",
-    #     "Department": "Operations",
-    #     "Location": "Sanford",
-    #     "PayRateType": "Salary",
-    #     "PayRate": 75000.00,
-    #     "AdditionType": "New Role",
-    #     "IsReHire": False,
-    #     "IsDriver": True,
-    #     "EmployeeID_Requested": True,
-    #     "PurchasingCard_Requested": False,
-    #     "GasCard_Requested": True,
-    #     "EmailAddress_Provided": "alice.johnson@example.com",
-    #     "MobilePhone_Requested": True,
-    #     "TLCBonusEligible": True,
-    #     "NoteField": "Needs access to CRM and project management software.",
-    #     "Createdby": "HR_Dept"
-    #     # Id, CreatedAt, UpdatedAt are typically auto-generated by the database
-    # }
-    # insert_success = insert_onboard_request(new_request_sample)
-    # # The following lines are repeated inserts for demonstration purposes,
-    # # you might want to comment them out or change data to avoid duplicates depending on your DB constraints.
-    # insert_success = insert_onboard_request(new_request_sample)
-    # insert_success = insert_onboard_request(new_request_sample)
-    # insert_success = insert_onboard_request(new_request_sample)
-    # print(f"Insert successful: {insert_success}")
-    # print("-" * 30)
-
-    # print("--- Data After INSERT ---")
-    # # After inserting, you might want to fetch all data again to see the new record(s)
-    # # and then identify an 'Id' for update/delete operations.
-    # onboard_data_after_insert = get_onboard_all()
-    # print(onboard_data_after_insert)
-    # print("-" * 30)
-
-    # # Example UPDATE data
-    # # IMPORTANT: For UPDATE, you need an existing 'Id' from your database.
-    # # Replace '1' with an actual 'Id' from your 'OnBoardRequestForm' table
-    # # that you verified exists after the insert or from your existing DB.
-    # update_id_sample = 1 # <--- CHANGE THIS TO AN ACTUAL ID FROM YOUR DATABASE
-    # update_details_sample = {
-    #     "PositionTitle": "Senior Project Coordinator",
-    #     "PayRate": 80000.00,
-    #     "Location": "Remote",
-    #     "NoteField": "Updated to reflect remote work status and promotion."
-    # }
-    # print(f"--- Testing UPDATE for RequestId {update_id_sample} ---")
-    # update_success = update_onboard_request(update_id_sample, update_details_sample)
-    # print(f"Update successful: {update_success}")
-    # print("-" * 30)
-
-    # print("--- Data After UPDATE ---")
-    # print(get_onboard_all())
-    # print("-" * 30)
-
-    # # Example DELETE (assuming an ID exists)
-    # # IMPORTANT: For DELETE, you need an existing 'Id' from your database.
-    # # Replace '1' with an actual 'Id' from your 'OnBoardRequestForm' table.
-    # delete_id_sample = 1 # <--- CHANGE THIS TO AN ACTUAL ID FROM YOUR DATABASE
-    # print(f"--- Testing DELETE for RequestId {delete_id_sample} ---")
-    # delete_success = delete_onboard_request(delete_id_sample)
-    # print(f"Delete successful: {delete_success}")
-    # print("-" * 30)
-
-    # print("--- Data After DELETE ---")
-    # print(get_onboard_all())
-    # print("-" * 30)
-    # print("--- Sample Run 1: Searching for 'Moulisha Reddimasu' ---")
-    # search_term_1 = "Moulisha Reddimasu"
-    # result_df_1 = CF_SP_Emp_Detail_Search(search_term=search_term_1)
-    # print("Results for 'Moulisha Reddimasu':")
-    # print(result_df_1)
-    # print("\n")
-
-    # print("--- Sample Run 2: Searching for 'Moulisha' ---")
-    # search_term_2 = "Moulisha"
-    # result_df_2 = CF_SP_Emp_Detail_Search(search_term=search_term_2)
-    # print("Results for 'Moulisha':")
-    # print(result_df_2)
-    # print("\n")
-    
-    # print("--- Sample Run 2: Searching for 'Reddimasu' ---")
-    # search_term_2 = "Reddimasu"
-    # result_df_2 = CF_SP_Emp_Detail_Search(search_term=search_term_2)
-    # print("Results for 'Reddimasu':")
-    # print(result_df_2)
-    # print("\n")
-
-    # # Example 3: Search for a term that should not match anything
-    # print("--- Sample Run 3: Searching for 'xyz_nonexistent' ---")
-    # search_term_3 = "xyz_nonexistent"
-    # result_df_3 = CF_SP_Emp_Detail_Search(search_term=search_term_3)
-    # print("Results for 'xyz_nonexistent':")
-    # print(result_df_3)
-    # print("\n")
+# ------------------------------------------------------------------------------
+# (Optional) tiny smoke tests when running directly
+# ------------------------------------------------------------------------------
+if __name__ == "__main__":
+    print("servertest.py loaded.")
+    # Example: print latest role for an email
+    # prof = get_profile_by_email("someone@guardianfueltech.com")
+    # print(prof)

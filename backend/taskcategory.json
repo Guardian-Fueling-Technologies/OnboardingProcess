@@ -1,0 +1,227 @@
+{
+    "DEV": {
+      "EmployeeID_Requested_Insert": {
+        "task_type": "Employee ID Issuance",
+        "name_prefix": "Issue Employee ID for",
+        "assignedTo": "HR/Payroll",
+        "description": "Generate and assign unique employee identification.",
+        "short_code": "1",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task: Employee ID Issuance for {employee_full_name}",
+        "email_body_template": "Please issue an Employee ID for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.",
+        "sms_message_template": "Task: Employee ID for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}."
+      },
+      "EmployeeID_Requested_Update": {
+        "task_type": "Employee ID Issuance",
+        "name_prefix": "Issue Employee ID for",
+        "assignedTo": "HR/Payroll",
+        "description": "Update request for employee identification.",
+        "short_code": "1",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task Update: Employee ID Issuance for {employee_full_name}",
+        "email_body_template": "Please update the Employee ID task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Changes: {details}",
+        "sms_message_template": "UPDATE: Employee ID for {employee_full_name}. {details}"
+      },
+      "EmployeeID_Requested_Delete": {
+        "task_type": "Employee ID Issuance",
+        "name_prefix": "Issue Employee ID for",
+        "assignedTo": "HR/Payroll",
+        "description": "Cancel employee identification request.",
+        "short_code": "1",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task Cancelled: Employee ID Issuance for {employee_full_name}",
+        "email_body_template": "Please cancel the Employee ID task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Reason: {details}",
+        "sms_message_template": "CANCELLED: Employee ID for {employee_full_name}. Reason: {details}"
+      },
+  
+      "PurchasingCard_Requested_Insert": {
+        "task_type": "Purchasing Card Issuance",
+        "name_prefix": "Order Purchasing Card for",
+        "assignedTo": "Finance",
+        "description": "Process application and order employee purchasing card.",
+        "short_code": "2",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19046767222",
+        "email_subject": "Task: Purchasing Card Request for {employee_full_name}",
+        "email_body_template": "Please order a Purchasing Card for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.",
+        "sms_message_template": "Task: Purchasing Card for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}."
+      },
+      "PurchasingCard_Requested_Update": {
+        "task_type": "Purchasing Card Issuance",
+        "name_prefix": "Order Purchasing Card for",
+        "assignedTo": "Finance",
+        "description": "Update request for purchasing card.",
+        "short_code": "2",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19046767222",
+        "email_subject": "Task Update: Purchasing Card for {employee_full_name}",
+        "email_body_template": "Please update the Purchasing Card task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Changes: {details}",
+        "sms_message_template": "UPDATE: Purchasing Card for {employee_full_name}. {details}"
+      },
+      "PurchasingCard_Requested_Delete": {
+        "task_type": "Purchasing Card Issuance",
+        "name_prefix": "Order Purchasing Card for",
+        "assignedTo": "Finance",
+        "description": "Cancel purchasing card request.",
+        "short_code": "2",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19046767222",
+        "email_subject": "Task Cancelled: Purchasing Card for {employee_full_name}",
+        "email_body_template": "Please cancel the Purchasing Card task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Reason: {details}",
+        "sms_message_template": "CANCELLED: Purchasing Card for {employee_full_name}. Reason: {details}"
+      },
+      "GasCard_Requested_Insert": {
+        "task_type": "Gas Card Issuance",
+        "name_prefix": "Order Gas Card for",
+        "assignedTo": "Finance",
+        "description": "Process application and order employee gas card.",
+        "short_code": "3",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19046767222",
+        "email_subject": "Task: Gas Card Request for {employee_full_name}",
+        "email_body_template": "Please order a Gas Card for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.",
+        "sms_message_template": "Task: Gas Card for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}."
+      },
+      "GasCard_Requested_Update": {
+        "task_type": "Gas Card Issuance",
+        "name_prefix": "Order Gas Card for",
+        "assignedTo": "Finance",
+        "description": "Update request for gas card.",
+        "short_code": "3",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19046767222",
+        "email_subject": "Task Update: Gas Card for {employee_full_name}",
+        "email_body_template": "Please update the Gas Card task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Changes: {details}",
+        "sms_message_template": "UPDATE: Gas Card for {employee_full_name}. {details}"
+      },
+      "GasCard_Requested_Delete": {
+        "task_type": "Gas Card Issuance",
+        "name_prefix": "Order Gas Card for",
+        "assignedTo": "Finance",
+        "description": "Cancel gas card request.",
+        "short_code": "3",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19046767222",
+        "email_subject": "Task Cancelled: Gas Card for {employee_full_name}",
+        "email_body_template": "Please cancel the Gas Card task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Reason: {details}",
+        "sms_message_template": "CANCELLED: Gas Card for {employee_full_name}. Reason: {details}"
+      },
+    
+      "TLCBonus_Requested_Insert": {
+        "task_type": "TLC Bonus Eligibility",
+        "name_prefix": "Mark TLC Bonus Eligible for",
+        "assignedTo": "HR/Payroll",
+        "description": "Process TLC bonus eligibility for employee.",
+        "short_code": "4",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task: TLC Bonus Eligible for {employee_full_name}",
+        "email_body_template": "Please mark {employee_full_name} (Onboarding ID: {onboarding_id}) as TLC Bonus Eligible. Manager: {manager}.",
+        "sms_message_template": "Task: TLC Bonus Eligible for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}."
+      },
+      "TLCBonus_Requested_Update": {
+        "task_type": "TLC Bonus Eligibility",
+        "name_prefix": "Mark TLC Bonus Eligible for",
+        "assignedTo": "HR/Payroll",
+        "description": "Update request for TLC bonus eligibility.",
+        "short_code": "4",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task Update: TLC Bonus Eligible for {employee_full_name}",
+        "email_body_template": "Please update the TLC Bonus Eligible task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Changes: {details}",
+        "sms_message_template": "UPDATE: TLC Bonus Eligible for {employee_full_name}. {details}"
+      },
+      "TLCBonus_Requested_Delete": {
+        "task_type": "TLC Bonus Eligibility",
+        "name_prefix": "Mark TLC Bonus Eligible for",
+        "assignedTo": "HR/Payroll",
+        "description": "Cancel TLC bonus eligibility request.",
+        "short_code": "4",
+        "to_email": "yuanchichung@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task Cancelled: TLC Bonus Eligible for {employee_full_name}",
+        "email_body_template": "Please cancel the TLC Bonus Eligible task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Reason: {details}",
+        "sms_message_template": "CANCELLED: TLC Bonus Eligible for {employee_full_name}. Reason: {details}"
+      }
+    },
+  
+    "PROD": {
+      "EmployeeID_Requested_Insert": {
+        "task_type": "Employee ID Issuance",
+        "name_prefix": "Issue Employee ID for",
+        "assignedTo": "HR/Payroll",
+        "description": "Generate and assign unique employee identification.",
+        "short_code": "1",
+        "to_email": "amcdonald@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task: Employee ID Issuance for {employee_full_name}",
+        "email_body_template": "Please issue an Employee ID for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.",
+        "sms_message_template": "Task: Employee ID for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}."
+      },
+      "EmployeeID_Requested_Update": {
+        "task_type": "Employee ID Issuance",
+        "name_prefix": "Issue Employee ID for",
+        "assignedTo": "HR/Payroll",
+        "description": "Update request for employee identification.",
+        "short_code": "1",
+        "to_email": "amcdonald@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task Update: Employee ID Issuance for {employee_full_name}",
+        "email_body_template": "Please update the Employee ID task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Changes: {details}",
+        "sms_message_template": "UPDATE: Employee ID for {employee_full_name}. {details}"
+      },
+      "EmployeeID_Requested_Delete": {
+        "task_type": "Employee ID Issuance",
+        "name_prefix": "Issue Employee ID for",
+        "assignedTo": "HR/Payroll",
+        "description": "Cancel employee identification request.",
+        "short_code": "1",
+        "to_email": "amcdonald@guardianfueltech.com",
+        "to_phone": "19047083886",
+        "email_subject": "Task Cancelled: Employee ID Issuance for {employee_full_name}",
+        "email_body_template": "Please cancel the Employee ID task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Reason: {details}",
+        "sms_message_template": "CANCELLED: Employee ID for {employee_full_name}. Reason: {details}"
+      },
+  
+      "PurchasingCard_Requested_Insert": {
+        "task_type": "Purchasing Card Issuance",
+        "name_prefix": "Order Purchasing Card for",
+        "assignedTo": "Finance",
+        "description": "Process application and order employee purchasing card.",
+        "short_code": "2",
+        "to_email": "nwood@guardianfueltech.com",
+        "to_phone": "19043157570",
+        "email_subject": "Task: Purchasing Card Request for {employee_full_name}",
+        "email_body_template": "Please order a Purchasing Card for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}.",
+        "sms_message_template": "Task: Purchasing Card for {employee_full_name} (ID: {onboarding_id}). Manager: {manager}."
+      },
+      "PurchasingCard_Requested_Update": {
+        "task_type": "Purchasing Card Issuance",
+        "name_prefix": "Order Purchasing Card for",
+        "assignedTo": "Finance",
+        "description": "Update request for purchasing card.",
+        "short_code": "2",
+        "to_email": "nwood@guardianfueltech.com",
+        "to_phone": "19043157570",
+        "email_subject": "Task Update: Purchasing Card for {employee_full_name}",
+        "email_body_template": "Please update the Purchasing Card task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Changes: {details}",
+        "sms_message_template": "UPDATE: Purchasing Card for {employee_full_name}. {details}"
+      },
+      "PurchasingCard_Requested_Delete": {
+        "task_type": "Purchasing Card Issuance",
+        "name_prefix": "Order Purchasing Card for",
+        "assignedTo": "Finance",
+        "description": "Cancel purchasing card request.",
+        "short_code": "2",
+        "to_email": "nwood@guardianfueltech.com",
+        "to_phone": "19043157570",
+        "email_subject": "Task Cancelled: Purchasing Card for {employee_full_name}",
+        "email_body_template": "Please cancel the Purchasing Card task for {employee_full_name} (Onboarding ID: {onboarding_id}). Manager: {manager}. Reason: {details}",
+        "sms_message_template": "CANCELLED: Purchasing Card for {employee_full_name}. Reason: {details}"
+      }
+    }
+  }
+  

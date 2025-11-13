@@ -1,220 +1,101 @@
 /* src/components/Sidebar/Sidebar.css */
+/* src/components/sidebar/sidebar.css */
 
-/* Base Sidebar Styling */
 .sidebar {
-  width: 250px;
-  flex-shrink: 0;
-  flex-grow: 0;
-  min-width: 250px;
-  max-width: 250px;
-  background-color: #ffffff;
-  padding: 20px;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.08);
-  border-radius: 0 15px 15px 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #e9f5ff #f0f2f5;
-}
-
-/* Custom Scrollbar for Webkit browsers (Chrome, Safari, Edge) */
-.sidebar::-webkit-scrollbar {
-  width: 8px;
-}
-.sidebar::-webkit-scrollbar-thumb {
-  background-color: #e9f5ff;
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-.sidebar::-webkit-scrollbar-track {
-  background-color: #f0f2f5;
-  border-radius: 10px;
-}
-
-/* Logo Styling */
-.sidebar-logo {
-  padding: 10px 0 20px;
+  width: 240px;
+  background: #fff;
+  border-right: 1px solid #eee;
+  min-height: 100vh;
+  padding: 16px 12px;
 }
 
 .sidebar-logo img {
-  max-width: 180px;
+  width: 170px;
   height: auto;
   display: block;
+  margin: 4px auto 16px;
 }
 
-/* User Profile Section */
 .user-profile {
   text-align: center;
-  margin-bottom: 40px;
-  color: #555;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #f0f2f5;
-  width: 100%;
+  margin-bottom: 16px;
 }
 
+.avatar-link { display: inline-block; }
+
 .profile-avatar {
-  font-size: 60px;
-  color: #007bff;
-  margin-bottom: 10px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e6e6e6;
+}
+
+.avatar-fallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #0d8abc; /* blue */
+  color: #fff;
+  font-weight: 700;
+  margin: 0 auto;
 }
 
 .user-name {
+  margin: 8px 0 2px;
   font-weight: 600;
-  margin: 0;
-  font-size: 1.1em;
-  color: #333;
 }
 
 .user-role {
-  font-size: 0.9em;
-  color: #777;
   margin: 0;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
-/* Navigation Menu */
-.sidebar-nav {
-  width: 100%;
-  flex-grow: 1;
+/* Red box */
+.sidebar-redbox {
+  background: #fff5f5;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 10px 0 18px;
 }
 
+.redbox-title {
+  font-weight: 700;
+  color: #b91c1c;
+  margin-bottom: 6px;
+}
+
+.redbox-body {
+  font-size: 0.9rem;
+  color: #7f1d1d;
+}
+
+/* Nav */
 .sidebar-nav ul {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.sidebar-nav li {
-  padding: 0; /* Padding is handled by the nav-link now */
-  margin-bottom: 8px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-  color: #555;
-  font-weight: 500;
-  overflow: hidden;
-}
-
-/* Navigation Link Styling - IMPORTANT changes here */
 .sidebar-nav .nav-link {
-  display: flex; /* Make the link a flex container */
-  align-items: center; /* Vertically center icon and text */
-  justify-content: flex-start; /* Aligns icon and text to the start */
-
-  padding: 12px 20px; /* Consistent padding for the whole clickable area */
-  text-decoration: none; /* REMOVES UNDERLINE */
-  color: inherit; /* Inherit color from parent li */
-  width: 100%; /* Make the link fill the li */
-  height: 100%;
-  box-sizing: border-box;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #374151;
+  text-decoration: none;
+  border-radius: 8px;
 }
 
-/* Icon Styling within the nav-link */
-.sidebar-nav .nav-icon {
-  font-size: 1.2em;
-  margin-right: 15px; /* Space between icon and text */
-  color: #888;
-  transition: color 0.2s ease;
+.sidebar-nav li + li { margin-top: 6px; }
+
+.sidebar-nav li.active .nav-link,
+.sidebar-nav .nav-link:hover {
+  background: #f3f4f6;
 }
 
-/* Removed .sidebar-nav .nav-arrow rule */
-
-/* Hover State */
-.sidebar-nav li:hover {
-  background-color: #e9f5ff;
-  color: #007bff;
-}
-
-.sidebar-nav li:hover .nav-icon { /* Only icon changes color on hover */
-  color: #007bff;
-}
-
-/* Active State */
-.sidebar-nav li.active {
-  background-color: #e9f5ff;
-  color: #007bff;
-  font-weight: 600;
-  box-shadow: inset 3px 0 0 0 #007bff; /* Left line indicator */
-}
-
-.sidebar-nav li.active .nav-icon { /* Only icon changes color for active */
-  color: #007bff;
-}
-
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-  .sidebar {
-    width: 100%;
-    height: auto;
-    border-radius: 0;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    padding: 15px 10px 0;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-    overflow-y: visible;
-    scrollbar-width: none;
-  }
-
-  .sidebar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .sidebar-logo {
-    display: block;
-    padding: 0;
-    margin-right: 15px;
-  }
-
-  .sidebar-logo img {
-    max-width: 120px;
-  }
-
-  .user-profile {
-    display: none;
-  }
-
-  .sidebar-nav {
-    flex-grow: 1;
-    width: auto;
-  }
-
-  .sidebar-nav ul {
-    display: flex;
-    justify-content: flex-end;
-    width: 100%;
-  }
-
-  .sidebar-nav li {
-    flex-direction: column;
-    padding: 8px 10px;
-    margin-bottom: 0;
-    margin-left: 5px;
-    border-radius: 8px;
-    box-shadow: none;
-  }
-
-  .sidebar-nav li.active {
-     box-shadow: none;
-  }
-
-  .sidebar-nav .nav-icon {
-    margin-right: 0;
-    margin-bottom: 5px;
-    padding: 0;
-    font-size: 1.1em;
-  }
-
-  .sidebar-nav .nav-link {
-    padding: 0;
-    justify-content: center;
-    flex-direction: column; /* Keep icon and text stacked for mobile */
-    height: auto;
-  }
-
-  /* Removed .sidebar-nav .nav-arrow rule here as well */
-}
+.nav-icon { font-size: 16px; }

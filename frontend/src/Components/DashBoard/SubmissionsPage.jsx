@@ -1,94 +1,174 @@
-// src/SubmissionsPage.jsx (or src/components/SubmissionsPage/SubmissionsPage.jsx)
-import React, { useState, useEffect } from 'react';
-import './SubmissionsPage.css'; // Link to the CSS file
-import { Edit } from 'lucide-react'; // Edit icon for table
+// src/pages/SubmissionsPage.jsx
+import React, { useState, useEffect, useMemo } from 'react';
+import './SubmissionsPage.css';
+import { Edit } from 'lucide-react';
 import Sidebar from '../sidebar/sidebar';
-import { FaUserCircle } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
-import api from '../config'; // Import your configured Axios instance
+import { useNavigate, Link } from 'react-router-dom';
+import api from '../config';
+import { useAuth } from '../AuthContext';
 
-// REMOVE THE 'async' KEYWORD HERE
-const SubmissionsPage = () => { // Corrected: Removed 'async (e)'
+const SubmissionsPage = () => {
   const [submissionsData, setSubmissionsData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
+  const authHeaders = useMemo(
+    () => (user?.role_id ? { Authorization: `Bearer demo:${user.role_id}` } : {}),
+    [user?.role_id]
+  );
+
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const userRole = user?.role?.toLowerCase();
+  const displayName = user?.display_name || user?.email || 'User';
+  const avatarUrl =
+  user?.avatar?.startsWith('http')
+    ? user.avatar
+    : `https://ui-avatars.com/api/?background=0D8ABC&color=fff&name=${encodeURIComponent(displayName)}`;  const isManager = userRole === 'manager';
+  const isHR = userRole === 'hr';
+  const isAdmin = userRole === 'admin';
+
   useEffect(() => {
+    if (!isAuthenticated || !user?.email) return;
+
     const fetchSubmissions = async () => {
       try {
-        const submissionsResponse = await api.get('/api/submissions');
-        let submissionsResult = []; // Initialize as an empty array
-  
-        // Check if the response is an object with a 'message' property
-        if (submissionsResponse.data && typeof submissionsResponse.data === 'object' && 'message' in submissionsResponse.data) {
-          // If it's a message like "No submissions found", treat it as no data
-          console.log("Backend message:", submissionsResponse.data.message);
-          submissionsResult = []; // Keep it as an empty array
-        } else if (Array.isArray(submissionsResponse.data)) {
-          // If it's an array (the expected data format for submissions)
-          submissionsResult = submissionsResponse.data;
-        } else {
-          // Handle any other unexpected data format
-          console.warn("Unexpected data format from /api/submissions:", submissionsResponse.data);
-          submissionsResult = [];
+        setLoading(true);
+        setError("");
+
+        // 🧠 Filter so managers only get their own submissions
+        const res = await api.get("/api/submissions", {
+          headers: authHeaders,
+          params: {
+            page: currentPage,
+            per_page: rowsPerPage,
+            ...(isManager ? { created_by: user?.email } : {}),
+          },
+        });
+
+        if (res.status === 401) {
+          setSubmissionsData([]);
+          setError("Not authorized to view submissions (401).");
+          return;
         }
-  
-        console.log('Processed submissionsResult:', submissionsResult); // Now this should always be an array
-  
-        // Only proceed with mapping if submissionsResult is not empty
-        let transformedForFrontend = [];
-        if (submissionsResult.length > 0) {
-          transformedForFrontend = submissionsResult.map(item => {
-            const newName = [item.LegalFirstName, item.LegalMiddleName, item.LegalLastName]
+
+        if (res.status !== 200)
+          throw new Error(`GET /api/submissions returned status ${res.status}`);
+        
+        console.log(res.data.items);
+        
+        const { items = [], page, per_page, total_pages = 1 } = res.data || {};
+        const transformed = items.map((rawItem) => {
+          // normalize keys to lowercase
+          const item = Object.fromEntries(
+            Object.entries(rawItem).map(([k, v]) => [k.toLowerCase(), v])
+          );
+        
+          return {
+            submission_id: item.submission_id ?? "",
+            newName: [item.legalfirstname, item.legalmiddlename, item.legallastname]
               .filter(Boolean)
-              .join(' ');
-  
-            return {
-              id: item.Id,
-              newName: newName,
-              userType: item.Type,
-              positionTitle: item.PositionTitle,
-              location: item.Location,
-              manager: item.Manager,
-            };
-          });
-        }
-  
-        setSubmissionsData(transformedForFrontend);
-        console.log('Transformed data for frontend:', transformedForFrontend);
-  
-      } catch (error) {
-        alert('There was an error connecting to the server or processing your request.');
-        console.error('Network or unexpected error during fetch:', error);
-        setSubmissionsData([]); // Clear submissions data on error to ensure empty state
+              .join(" "),
+            userType: item.type ?? "",
+            positionTitle: item.positiontitle ?? "",
+            location: item.location ?? "",
+            manager: item.manager ?? "",
+            payRate: item.payrate ?? null,
+            payRateType: item.payratetype ?? "",
+            projectedStartDate: item.projectedstartdate ?? "",
+            department: item.department ?? "",
+            additionType: item.additiontype ?? "",
+            createdAt: item.createdat ?? "",
+            updatedAt: item.updatedat ?? "",
+            createdBy: item.createdby ?? item.create_by ?? "",
+          };
+        });
+        
+        // 🧠 Manager filtering is already handled on the backend
+        setSubmissionsData(transformed);
+        
+        if (page) setCurrentPage(page);
+        if (per_page) setRowsPerPage(per_page);
+        setTotalRows(transformed.length);
+        setTotalPages(total_pages);
+        
+      } catch (err) {
+        console.error("Error fetching submissions:", err);
+        setError(err.message || "Failed to fetch submissions.");
+        setSubmissionsData([]);
+      } finally {
+        setLoading(false);
       }
     };
-  
+
     fetchSubmissions();
-  }, []); // Add dependencies if needed, e.g., [api]
+  }, [isAuthenticated, user?.email, authHeaders, currentPage, rowsPerPage, isManager]);
 
-
-  const handleEditClick = (id) => {
-    navigate(`/submissions/${id}`); // Navigate to the edit form with the ID
+  const handleEditClick = (submission_id) => {
+    if (isAdmin || isHR) navigate(`/submissions/${submission_id}`);
   };
+
+
+  const startIndex = (currentPage - 1) * rowsPerPage;
+
+  const handleRowsChange = (e) => {
+    setRowsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="main-page-layout">
+        <Sidebar />
+        <main className="main-content">
+          <div className="loading-indicator">
+            <div className="spinner"></div>
+            <p>Loading submissions…</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="main-page-layout">
-      {/* Sidebar - Reused from Dashboard structure */}
       <Sidebar />
-
-      {/* Main Content */}
       <main className="main-content">
-        {/* Header - Reused from Dashboard structure */}
         <header className="main-header">
-          <h2>Submissions</h2> {/* Changed title */}
+          <h2>Welcome to Guardian</h2>
           <div className="header-right">
-            <a className="requested-form" href="/submissions/new">Requested Form</a>
-            <a className="requested-form" href="/EmployeeStatusChangeForm" > Status Change Form </a>
-            <FaUserCircle className="profile-avatar" />
+            {/* Managers can only add new requests */}
+            {/* All users can access both Requested Form and Status Change Form */}
+            <Link className="requested-form" to="/submissions/new">
+              Requested Form
+            </Link>
+            <Link className="requested-form" to="/EmployeeStatusChangeForm">
+              Status Change Form
+            </Link>
+
+
+            <Link to="/profile" title="View profile">
+            <img
+              className="profile-avatar"
+              src={avatarUrl}
+              alt={displayName}
+            />
+            </Link>
           </div>
         </header>
 
-        {/* Submissions Table Section */}
+        {error && (
+          <div className="error-message-container">
+            <p className="error-text">{error}</p>
+          </div>
+        )}
+
         <section className="submissions-table-section">
           <div className="table-filters">
             <input type="text" placeholder="New Hire Name" className="filter-input" />
@@ -96,13 +176,14 @@ const SubmissionsPage = () => { // Corrected: Removed 'async (e)'
             <input type="text" placeholder="Position Title" className="filter-input" />
             <input type="text" placeholder="Location" className="filter-input" />
             <input type="text" placeholder="Manager" className="filter-input" />
-            <span className="action-header">Action</span> {/* Placeholder for Action column header */}
+            <span className="action-header">Action</span>
           </div>
 
           <div className="submissions-table">
             <table>
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>New Hire Name</th>
                   <th>User Type</th>
                   <th>Position Title</th>
@@ -112,44 +193,84 @@ const SubmissionsPage = () => { // Corrected: Removed 'async (e)'
                 </tr>
               </thead>
               <tbody>
-                {submissionsData.map((submission) => (
-                  <tr key={submission.id}>
-                    <td>{submission.newName}</td>
-                    <td>
-                      <span className={`user-type-tag ${submission.userType.toLowerCase().replace(/\s/g, '-')}`}>
-                        {submission.userType}
-                      </span>
-                    </td>
-                    <td>{submission.positionTitle}</td>
-                    <td>{submission.location}</td>
-                    <td>{submission.manager}</td>
-                    <td>
-                      <button className="edit-button"  onClick={() => handleEditClick(submission.id)}>
-                        <Edit size={16} /> {/* Lucide React icon */}
-                      </button>
-                    </td>
+                {loading && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: "center" }}>Loading...</td>
                   </tr>
-                ))}
+                )}
+                {!loading && error && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: "center", color: "red" }}>{error}</td>
+                  </tr>
+                )}
+                {!loading && !error && submissionsData.length === 0 && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: "center", color: "#666" }}>No submissions found.</td>
+                  </tr>
+                )}
+                {!loading && !error && submissionsData.length > 0 &&
+                  submissionsData.map((submission, idx) => (
+                    <tr key={submission.submission_id}>
+                      <td>{startIndex + idx + 1}</td>
+                      <td>{submission.newName}</td>
+                      <td>
+                        <span
+                          className={`user-type-tag ${String(submission.userType || "")
+                            .toLowerCase()
+                            .replace(/\s/g, "-")}`}
+                        >
+                          {submission.userType}
+                        </span>
+                      </td>
+                      <td>{submission.positionTitle}</td>
+                      <td>{submission.location}</td>
+                      <td>{submission.manager}</td>
+                      <td>
+                      {/* Only HR or Admin can edit */}
+                      {(isAdmin || isHR) && (
+                        <button
+                          className="edit-button"
+                          onClick={() => handleEditClick(submission.submission_id)}
+                        >
+                          <Edit size={16} />
+                        </button>
+                      )}
+                    </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="table-pagination">
             <div className="rows-per-page">
               Rows per page:
-              <select>
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
+              <select value={rowsPerPage} onChange={handleRowsChange}>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
               </select>
             </div>
+
             <div className="pagination-info">
-              1-5 of 11
+              {totalRows === 0
+                ? "0 of 0"
+                : `${startIndex + 1}-${Math.min(startIndex + rowsPerPage, totalRows)} of ${totalRows}`}
             </div>
+
             <div className="pagination-controls">
-              <button>&lt;</button>
-              <button>&gt;</button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                &lt;
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                &gt;
+              </button>
             </div>
           </div>
         </section>

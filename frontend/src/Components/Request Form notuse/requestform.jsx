@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CalendarDays } from 'lucide-react'; // Ensure lucide-react is installed: npm install lucide-react
 import './requestform.css'; // Make sure you have this CSS file in the same directory or adjust the path
+import { Link } from 'react-router-dom'; // Import useParams and useNavigate
 
 function App() {
 
@@ -297,13 +298,13 @@ function App() {
     if (userConfirmed) {
       console.log('User confirmed submission. Data will now be sent to SQL (or API):', transformedData);
       try {
-        const response = await fetch('http://127.0.0.1:5000/api/submissions', { // Ensure this URL matches your Flask server
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(transformedData),
-        });
+        const response = 
+        await fetch(`/api/submissions/${submissionId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedData),
+        }
+      );
 
         if (response.ok) { // Check if the response status is 2xx
           const result = await response.json();
@@ -332,7 +333,7 @@ function App() {
       <header className="header">
         <div className="header-logo">GUARDIAN <span className="logo-subtext">PLATFORM TECHNOLOGIES</span></div>
         <nav>
-          <a href="/dashboard" className="header-nav-link">Dashboard</a>
+          <Link to = "../dashboard" className="header-nav-link">Dashboard</Link>
         </nav>
       </header>
 
@@ -359,9 +360,9 @@ function App() {
                   <option value="">Select Type</option>
                   <option value="Admin">Admin</option>
                   <option value="Field-Employee">Field-Employee</option>
-                  <option value="Full-time">Full-time</option> {/* Added as per DB suggestion */}
-                  <option value="Part-time">Part-time</option> {/* Added as per DB suggestion */}
                 </select>
+                  {/* <option value="Full-time">Full-time</option>
+                    <option value="Part-time">Part-time</option> removed 9/26 by Dave design from origin*/}
               </div>
 
               {/* Addition Type */}

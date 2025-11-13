@@ -513,21 +513,37 @@ body {
     padding-top: 10px;
 }
 
-/* Ensure these CSS variables are defined in your main stylesheet or :root, e.g.: */
-/*
-:root {
-    --primary-color: #4CAF50;
-    --primary-color-dark: #45a049;
-    --background-color: #f0f2f5;
-    --main-content-bg: #ffffff;
-    --card-bg-color: #ffffff;
-    --text-color: #555;
-    --text-color-dark: #333;
-    --icon-color: #666;
-    --border-color: #e0e0e0;
-    --shadow-small: 0 2px 4px rgba(0,0,0,0.1);
-    --shadow-medium: 0 4px 8px rgba(0,0,0,0.1);
-    --table-header-bg: #007bff;
-    --hover-color: #f5f5f5;
+/* Container for the table */
+.search-results-table-container {
+  margin-top: 20px;
+  background-color: var(--card-bg-color, #ffffff);
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-small, 0 2px 4px rgba(0,0,0,0.1));
+  overflow-x: auto; /* Horizontal scroll on small screens */
+  overflow-y: auto; /* Enable vertical scroll */
+  max-height: 400px; /* Adjust this value to fit your layout */
 }
-*/
+.dashboard-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  min-height: 60vh; /* keep it scoped to dashboard area */
+  color: #555;
+}
+
+.dashboard-loading .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(0,0,0,.1);
+  border-top-color: #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

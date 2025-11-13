@@ -1,31 +1,51 @@
 // src/axiosConfig.js
-import axios from 'axios'; // Make sure you have axios installed: npm install axios
+import axios from 'axios';
 
-const getBaseUrl = () => {
-  let url;
-  // process.env.NODE_ENV is set automatically by Create React App / build tools
-  switch(process.env.REACT_APP_API_BASE_URL) {
-    case 'production':
-      // This would be your LIVE production API URL
-      url = 'http://hrapi.guardianfueltech.com';
-      break;
-    case 'development':
-    default:
-      // This would be your LOCAL development API URL (e.g., your Flask server)
-      url = 'http://hrapi.guardianfueltech.com'; // Your Flask app
-  }
+// 1) Decide the base URL
+const baseURL =
+  // explicit override wins
+  process.env.REACT_APP_API_BASE_URL
+  // otherwise pick by NODE_ENV
+  || (process.env.NODE_ENV === 'production'
+      ? 'https://hrapi.guardianfueltech.com'
+      : 'http://127.0.0.1:5000');
 
-  console.log(`API Base URL: ${url} (NODE_ENV: ${process.env.NODE_ENV})`); // For debugging
-  return url;
-}
+console.log(`API Base URL: ${baseURL} (NODE_ENV: ${process.env.NODE_ENV})`);
 
-// entraid thingy
-// Export a pre-configured Axios instance
-export default axios.create({
-  baseURL: getBaseUrl(),
-  // You can add other default headers here if needed
+// 2) Create the client
+const api = axios.create({
+  baseURL,
+  withCredentials: true,          // <-- send cookies if your backend uses session cookies
   headers: {
     'Content-Type': 'application/json',
-    // 'Authorization': `Bearer ${yourAuthToken}` // Example for authentication
-  }
+  },
+  // If your server uses CSRF with cookies, uncomment and match your server names:
+  // xsrfCookieName: 'csrftoken',
+  // xsrfHeaderName: 'X-CSRFToken',
 });
+
+// 3) Attach bearer token if you use JWTs
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token'); // or wherever you store it
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// 4) Helpful console for 401/403 to see the server message
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err?.response?.status;
+    if (status === 401 || status === 403) {
+      console.warn('Auth/Permission error:', {
+        status,
+        url: err.config?.url,
+        method: err.config?.method,
+        data: err.response?.data,
+      });
+    }
+    return Promise.reject(err);
+  }
+);
+
+export default api;

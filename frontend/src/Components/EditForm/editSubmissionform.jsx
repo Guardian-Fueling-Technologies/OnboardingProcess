@@ -1,14 +1,15 @@
 // src/EditForm.jsx (or src/components/EditForm/EditForm.jsx)
 import React, { useState, useEffect, useMemo } from 'react';
 import { CalendarDays } from 'lucide-react';
-import { useParams, useNavigate } from 'react-router-dom'; // Import useParams and useNavigate
-import './editform.css'; // Make sure you have this CSS file in the same directory or adjust the path
+import { useParams, useNavigate, Link } from 'react-router-dom'; // Import useParams and useNavigate
+import './editSubmissionform.css'; // Make sure you have this CSS file in the same directory or adjust the path
 import api from '../config';
+import { useAuth } from "../AuthContext";
 
 const EditForm = () => {
-  const { id } = useParams(); // Get the ID from the URL (will be undefined for new submissions)
-  const navigate = useNavigate(); // For redirecting after update/creation
-
+  const { user } = useAuth();
+  const { submission_id } = useParams(); // Get the ID from the URL (will be undefined for new submissions)
+  const navigate = useNavigate()
   const getTodayDate = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -20,6 +21,7 @@ const EditForm = () => {
   const formattedToday = useMemo(() => getTodayDate(), []); // This ensures formattedToday is calculated only once
 
 const initialFormData = useMemo(() => ({ // Memoize initialFormData as well
+  Id: '',
   type: '',
   projectedStartDate: formattedToday, // This will now be stable
   legalFirstName: '',
@@ -69,110 +71,94 @@ const initialFormData = useMemo(() => ({ // Memoize initialFormData as well
   emailGlobal: false,
   emailBranchDispatch: false,
   adminSpField: '',
+  employee_email: '',
+  submission_id:"", 
 }), [formattedToday]); // initialFormData depends on formattedToday
-
 
 const [formData, setFormData] = useState(initialFormData);
 const [loading, setLoading] = useState(true);
 const [error, setError] = useState(null);
-
-// --- useEffect to fetch data on component mount or ID change ---
 useEffect(() => {
   const fetchAndInitializeFormData = async () => {
-    setLoading(true); // Always start loading when initializing or fetching
-    setError(null); // Clear any previous errors
+    setLoading(true);
+    setError(null);
 
-    if (id) { // If ID exists, fetch data for editing
-      try {
-        const response = await api.get(`/api/submissions/${id}`);
-        let rawSubmissionData = {};
-
-        if (response.data && typeof response.data === 'object' && Object.keys(response.data).length > 0) {
-          rawSubmissionData = response.data;
-        } else if (response.data && 'message' in response.data) {
-          console.warn("Backend message (no data for ID):", response.data.message);
-          throw new Error(response.data.message || `No data found for submission with ID ${id}`);
-        } else {
-          console.warn("Unexpected or empty data format from /api/submissions/:id", response.data);
-          throw new Error(`Unexpected data format or empty response for submission with ID ${id}`);
-        }
-
-        console.log("Fetched raw data for editing:", rawSubmissionData);
-
-        const transformedFormData = {
-          type: rawSubmissionData.Type || '',
-          // HERE'S THE CHANGE: Use fetched date, no fallback to formattedToday for existing records
-          projectedStartDate: rawSubmissionData.ProjectedStartDate ? new Date(rawSubmissionData.ProjectedStartDate).toISOString().split('T')[0] : '', // Keep empty if not present, or handle initial state where it might be missing
-          legalFirstName: rawSubmissionData.LegalFirstName || '',
-          legalMiddleName: rawSubmissionData.LegalMiddleName || '',
-          legalLastName: rawSubmissionData.LegalLastName || '',
-          suffix: rawSubmissionData.Suffix || '',
-          positionTitle: rawSubmissionData.PositionTitle || '',
-          manager: rawSubmissionData.Manager || '',
-          department: rawSubmissionData.Department || '',
-          location: rawSubmissionData.Location || '',
-          payRateType: rawSubmissionData.PayRateType === 'Salary' ? 'Yearly' : (rawSubmissionData.PayRateType === 'Hourly' ? 'Hourly' : ''),
-          payRate: rawSubmissionData.PayRate !== null ? rawSubmissionData.PayRate.toString() : '',
-          additionType: rawSubmissionData.AdditionType || '',
-          isRehire: rawSubmissionData.IsReHire ? 'Yes' : 'No',
-          isDriver: rawSubmissionData.IsDriver || false,
-
-          employeeID_Requested: rawSubmissionData.EmployeeID_Requested || false,
-          purchasingCard_Requested: rawSubmissionData.PurchasingCard_Requested || false,
-          gasCard_Requested: rawSubmissionData.GasCard_Requested || false,
-          tlcBonusEligible: rawSubmissionData.TLCBonusEligible || false,
-          noteField: rawSubmissionData.NoteField || '',
-
-          // ... (rest of your description fields and email distribution checkboxes remain the same)
-          employeeID_RequestedDescription: '',
-          purchasingCard_RequestedDescription: '',
-          gasCard_RequestedDescription: '',
-          shirtIncludeSize: false,
-          shirtIncludeSizeDescription: '',
-          tlcBonusEligibleDescription: '',
-          vpnAccess: false,
-          vpnAccessDescription: '',
-          wifiDomain: false,
-          wifiDomainDescription: '',
-          citrixAccess: false,
-          citrixAccessDescription: '',
-          opAccess: false,
-          opAccessDescription: '',
-          computer: false,
-          computerDescription: '',
-
-          emailAdminNoTech: false,
-          emailBranchManager: false,
-          emailSales: false,
-          emailBranchTech: false,
-          emailPartsManager: false,
-          emailServiceManager: false,
-          emailTechGlobal: false,
-          emailGlobal: false,
-          emailBranchDispatch: false,
-          adminSpField: '',
-        };
-
-        console.log("Transformed form data for editing:", transformedFormData);
-        setFormData(transformedFormData);
-
-      } catch (err) {
-        console.error("Error fetching submission:", err);
-        setError(err.message || "Failed to load submission data. Please check the ID and try again.");
-        // Consider what initial state formData should be on error (e.g., reset to empty, or keep what was there)
-      } finally {
-        setLoading(false);
-      }
-    } else {
+    if (!submission_id) {
       console.log("No submission ID provided. Initializing empty form for new submission.");
-      setFormData(initialFormData); // initialFormData is now stable
+      setFormData(initialFormData);
       setLoading(false);
       setError(null);
+      return;
+    }
+
+    try {
+      const response = await api.get(`/api/submissions/${submission_id}`);
+
+      if (!response?.data || typeof response.data !== "object") {
+        throw new Error(`No valid data returned for submission ID ${submission_id}`);
+      }
+
+      const rawSubmissionData = response.data;
+
+      // 🔒 Restrict access if manager tries to open another user's submission
+      if (
+        user?.role === "manager" &&
+        rawSubmissionData.Createdby &&
+        rawSubmissionData.Createdby !== user.id // or user.email, depending on what you use
+      ) {
+        alert("You are not authorized to view or edit this submission.");
+        navigate("/submissions");
+        window.location.reload(); // ensure new data fetched
+        return; // ✅ return is fine here — it exits early before setFormData runs
+      }
+
+      console.log("Fetched raw data for editing:", rawSubmissionData);
+
+      const transformedFormData = {
+        Id: rawSubmissionData.Id || "",
+        type: rawSubmissionData.Type || "",
+        projectedStartDate: rawSubmissionData.ProjectedStartDate
+          ? new Date(rawSubmissionData.ProjectedStartDate).toISOString().split("T")[0]
+          : "",
+        legalFirstName: rawSubmissionData.LegalFirstName || "",
+        legalMiddleName: rawSubmissionData.LegalMiddleName || "",
+        legalLastName: rawSubmissionData.LegalLastName || "",
+        suffix: rawSubmissionData.Suffix || "",
+        positionTitle: rawSubmissionData.PositionTitle || "",
+        manager: rawSubmissionData.Manager || "",
+        department: rawSubmissionData.Department || "",
+        location: rawSubmissionData.Location || "",
+        payRateType:
+          rawSubmissionData.PayRateType === "Salary"
+            ? "Yearly"
+            : rawSubmissionData.PayRateType === "Hourly"
+            ? "Hourly"
+            : "",
+        payRate: rawSubmissionData.PayRate?.toString() || "",
+        additionType: rawSubmissionData.AdditionType || "",
+        isRehire: rawSubmissionData.IsReHire ? "Yes" : "No",
+        isDriver: !!rawSubmissionData.IsDriver,
+        noteField: rawSubmissionData.NoteField || "",
+        employee_email: rawSubmissionData.employee_email || "",
+        submission_id: submission_id,
+        employeeID_Requested: !!rawSubmissionData.EmployeeID_Requested,
+        purchasingCard_Requested: !!rawSubmissionData.PurchasingCard_Requested,
+        gasCard_Requested: !!rawSubmissionData.GasCard_Requested,
+        tlcBonusEligible: !!rawSubmissionData.TLCBonusEligible,
+      };
+      
+
+      setFormData(transformedFormData);
+    } catch (err) {
+      console.error("Error fetching submission:", err);
+      setError(err.message || "Failed to load submission data.");
+    } finally {
+      setLoading(false);
     }
   };
 
   fetchAndInitializeFormData();
-}, [id, initialFormData]);
+}, [submission_id, initialFormData, navigate, user?.id, user?.role]);
 
 const handleChange = (e) => {
   const { name, value, type, checked } = e.target;
@@ -254,7 +240,14 @@ const handleSubmit = async (e) => {
     alert('Please select a Location.');
     return;
   }
-
+  if (!formData.employee_email.trim()) {
+    alert('Please enter the Employee Email.');
+    return;
+  }
+  if (!/\S+@\S+\.\S+/.test(formData.employee_email)) {
+    alert('Please enter a valid email address.');
+    return;
+  }
   if (!formData.payRate.trim()) {
     alert('Please enter a Pay Rate.');
     return;
@@ -279,6 +272,7 @@ const handleSubmit = async (e) => {
   // Declare transformedData before its first use
   const transformedData = {
     // Example transformations - adjust based on your backend's exact needs
+    Id:formData.Id, 
     Type: formData.type,
     ProjectedStartDate: formData.projectedStartDate,
     LegalFirstName: formData.legalFirstName,
@@ -301,11 +295,9 @@ const handleSubmit = async (e) => {
     TLCBonusEligible: formData.tlcBonusEligible,
     // NoteField will be populated below
     NoteField: '', // Initialize to empty, then build it
-    // Ensure all backend expected fields are mapped from formData,
-    // even if they were just set to default empty values during fetch
-    // Example for email distribution if your backend also handles them explicitly:
-    // EmailAdminNoTech: formData.emailAdminNoTech,
-    // ...
+    employee_email: formData.employee_email, 
+    submission_id: submission_id,
+    Createdby: user?.email
   };
 
   let fullNoteField = formData.noteField;
@@ -326,17 +318,17 @@ const handleSubmit = async (e) => {
 
   console.log('Transformed Data for Update (console):', JSON.stringify(transformedData, null, 2));
 
-  const userConfirmed = window.confirm(id ? 'Are you sure you want to update this request?' : 'Are you sure you want to create this new request?');
+  const userConfirmed = window.confirm(submission_id ? 'Are you sure you want to update this request?' : 'Are you sure you want to create this new request?');
 
   if (userConfirmed) {
-    console.log(id ? 'User confirmed update.' : 'User confirmed creation.', 'Data will now be sent:', transformedData);
+    console.log(submission_id ? 'User confirmed update.' : 'User confirmed creation.', 'Data will now be sent:', transformedData);
     try {
       let response;
       let successMessage;
 
-      if (id) {
+      if (submission_id) {
         // Situation 2 & 3: Use api.put for updates
-        response = await api.put(`/api/submissions/${id}`, transformedData);
+        response = await api.put(`/api/submissions`, transformedData);
         successMessage = 'Request updated successfully!';
       } else {
         // Situation 3: Use api.post for new submissions
@@ -346,18 +338,19 @@ const handleSubmit = async (e) => {
 
       const result = response.data; // Access the parsed JSON directly from response.data
       alert(result.message || successMessage);
-      console.log(id ? 'Update success:' : 'Creation success:', result);
+      console.log(submission_id ? 'Update success:' : 'Creation success:', result);
       navigate('/submissions'); // Redirect back to submissions list after successful operation
 
-    } catch (error) {
-      console.error('Error during submission:', error);
+    } catch (error) {        
+      console.error("Update failed:", error.response?.data || error.message);
+
 
       let errorMessage = 'There was an error connecting to the server or processing your request.';
 
       if (error.response) {
         console.error('Server responded with:', error.response.data);
         console.error('Status:', error.response.status);
-        errorMessage = error.response.data.error || error.response.data.message || `Failed to ${id ? 'update' : 'create'} request (Status: ${error.response.status})`;
+        errorMessage = error.response.data.error || error.response.data.message || `Failed to ${submission_id ? 'update' : 'create'} request (Status: ${error.response.status})`;
       } else if (error.request) {
         console.error('No response received:', error.request);
         errorMessage = 'No response from server. Please check your network connection.';
@@ -369,7 +362,7 @@ const handleSubmit = async (e) => {
       alert(errorMessage);
     }
   } else {
-    console.log(id ? 'User cancelled update.' : 'User cancelled creation.');
+    console.log(submission_id ? 'User cancelled update.' : 'User cancelled creation.');
   }
 };
 
@@ -389,13 +382,13 @@ if (error) {
       <header className="header">
         <div className="header-logo">GUARDIAN <span className="logo-subtext">PLATFORM TECHNOLOGIES</span></div>
         <nav>
-          <a href="/dashboard" className="header-nav-link">Dashboard</a>
+          <Link to = "../dashboard" className="header-nav-link">Dashboard</Link>
         </nav>
       </header>
 
       {/* Main Content Area */}
       <main className="form-main-content">
-        <h1 className="form-title">Edit Hire Request Form (ID: {id})</h1> {/* Changed title for clarity */}
+        <h1 className="form-title">Edit Hire Request Form (ID: {submission_id})</h1> {/* Changed title for clarity */}
 
         {/* Form Section */}
         <form onSubmit={handleSubmit}>
@@ -416,8 +409,8 @@ if (error) {
                   <option value="">Select Type</option>
                   <option value="Admin">Admin</option>
                   <option value="Field-Employee">Field-Employee</option>
-                  <option value="Full-time">Full-time</option>
-                  <option value="Part-time">Part-time</option>
+                  {/* <option value="Full-time">Full-time</option>
+                  <option value="Part-time">Part-time</option> */}
                 </select>
               </div>
 
@@ -621,6 +614,20 @@ if (error) {
                 </div>
               </div>
 
+              {/* Employee Email */}
+              <div className="form-field-group">
+                <label htmlFor="employee_email" className="form-label">Employee Email</label>
+                <input
+                  type="email"
+                  id="employee_email"
+                  name="employee_email"
+                  value={formData.employee_email}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="e.g., user@corp.local"
+                />
+              </div>
+
               {/* Is Re-Hire? */}
               <div className="form-field-group">
                 <label className="form-label">Is this a Re-Hire?</label>
@@ -683,47 +690,6 @@ if (error) {
           </>
 
           {/* Step 2: Email Distribution */}
-          <>
-            <h2 className="form-section-title">Email Distribution</h2>
-            <div className="checkbox-grid">
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailAdminNoTech" name="emailAdminNoTech" checked={formData.emailAdminNoTech} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailAdminNoTech" className="checkbox-label">Admin No Tech</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailBranchManager" name="emailBranchManager" checked={formData.emailBranchManager} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailBranchManager" className="checkbox-label">Branch Manager</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailSales" name="emailSales" checked={formData.emailSales} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailSales" className="checkbox-label">Sales</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailBranchTech" name="emailBranchTech" checked={formData.emailBranchTech} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailBranchTech" className="checkbox-label">Branch Tech</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailPartsManager" name="emailPartsManager" checked={formData.emailPartsManager} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailPartsManager" className="checkbox-label">Parts Manager</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailServiceManager" name="emailServiceManager" checked={formData.emailServiceManager} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailServiceManager" className="checkbox-label">Service Manager</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailTechGlobal" name="emailTechGlobal" checked={formData.emailTechGlobal} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailTechGlobal" className="checkbox-label">Tech Global</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailGlobal" name="emailGlobal" checked={formData.emailGlobal} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailGlobal" className="checkbox-label">Global</label>
-              </div>
-              <div className="checkbox-group">
-                <input type="checkbox" id="emailBranchDispatch" name="emailBranchDispatch" checked={formData.emailBranchDispatch} onChange={handleChange} className="checkbox-input" />
-                <label htmlFor="emailBranchDispatch" className="checkbox-label">Branch Dispatch</label>
-              </div>
-            </div>
-          </>
 
           {/* Step 3: Admin/Field Information */}
           <>

@@ -211,6 +211,7 @@ html, body {
   .submissions-table table {
     width: 100%;
     border-collapse: collapse;
+    overflow-x: auto;        /* you can remove this if you use the new scroll wrapper */
     text-align: left;
   }
   
@@ -290,7 +291,7 @@ html, body {
   .rows-per-page select {
     padding: 5px 10px;
     border-radius: 5px;
-    border: 1px solid #ddd;
+    border: 1px solid #000000;
     margin-left: 10px;
     background-color: #fff;
   }
@@ -386,3 +387,27 @@ html, body {
       margin-right: 8px;
     }
   }
+  /* Let the main column layout allow inner scrolling */
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  min-height: 0;           /* <-- critical for flex children to be scrollable */
+}
+
+/* The card/section should grow and allow its children to scroll */
+.submissions-table-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1 1 auto;          /* fill available space */
+  min-height: 0;           /* <-- critical */
+}
+
+/* Scroll area for the table */
+.submissions-table-scroll {
+  flex: 1 1 auto;          /* take remaining height in the section */
+  min-height: 0;           /* allow shrinking inside flex parent */
+  overflow: auto;          /* vertical & horizontal scroll as needed */
+  border-radius: 12px;
+}

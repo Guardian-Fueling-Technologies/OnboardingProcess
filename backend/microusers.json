@@ -1,0 +1,26 @@
+{
+  "u_admin": {
+    "display_name": "Charlie (YuanChi) Chung",
+    "email": "yuanchichung@guardianfueltech.com",
+    "role": "admin",
+    "edited_by": "Charlie (YuanChi) Chung",
+    "createdTime": "2025-09-26T10:14:57.016240",
+    "editTime": "2025-09-26T10:14:57.016240",
+    "env": "prod",
+    "password": "",
+    "status": "stable",
+    "role_id": "536ad1369b3f7eb42cad6bcc6bd290476e2e388589da84d847fdf466140e0bee"
+  },
+  "u_david": {
+    "display_name": "David McMichael",
+    "email": "dmcmichael@guardianfueltech.com",
+    "role": "admin",
+    "edited_by": "David McMichael",
+    "createdTime": "2025-09-26T13:34:13.2929810",
+    "editTime": "2025-09-26T13:34:13.2929810",
+    "env": "prod",
+    "password": "",
+    "status": "stable",
+    "role_id": "0136b1b7423de4ab780f99f0a92b2cbae7239d8ce08df2e19267016207b93a8f"
+  }
+}

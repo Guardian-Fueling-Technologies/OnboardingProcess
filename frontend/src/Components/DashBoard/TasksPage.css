@@ -1,6 +1,74 @@
-/* src/TasksPage.css */
+/* ===== Global layout ===== */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
 
-/* Tasks Table Section */
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f0f2f5;
+  min-height: 100vh;
+}
+
+/* ===== Main layout ===== */
+.main-page-layout {
+  display: flex;
+  background-color: #f0f2f5;
+  flex-grow: 1;
+  width: 100vw;
+  height: 100vh;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  min-height: 0; /* important for scroll */
+}
+
+/* ===== Header ===== */
+.main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #333;
+}
+
+.main-header h2 {
+  margin: 0;
+  font-size: 1.8em;
+  font-weight: 600;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.requested-form {
+  font-size: 0.9em;
+  color: #007bff;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.requested-form:hover {
+  text-decoration: underline;
+}
+
+/* ===== Tasks Table Section ===== */
 .tasks-table-section {
   background-color: #ffffff;
   border-radius: 15px;
@@ -9,8 +77,11 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
+/* ===== Search Bar / Filters ===== */
 .table-filters {
   display: flex;
   flex-wrap: wrap;
@@ -21,8 +92,8 @@
 }
 
 .filter-input {
-  flex: 1; /* Allows inputs to grow */
-  min-width: 120px; /* Adjust minimum width for inputs */
+  flex: 1;
+  min-width: 200px;
   padding: 10px 15px;
   border: 1px solid #ddd;
   border-radius: 8px;
@@ -34,65 +105,57 @@
   color: #aaa;
 }
 
-.action-header {
-  font-weight: bold;
-  color: #333;
-  width: 50px; /* Example width, adjust as per your table's action column */
-  text-align: center;
+/* ===== Scrollable Table Container ===== */
+.tasks-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 12px;
 }
 
+/* ===== Table Styles ===== */
 .tasks-table {
-  overflow-x: auto; /* Allows table to scroll horizontally on small screens */
-}
-
-.tasks-table table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  font-size: 0.9em;
 }
 
-.tasks-table th,
-.tasks-table td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #eee;
-  white-space: nowrap; /* Prevent text wrapping in cells */
-}
-
-.tasks-table th {
+/* Header */
+.tasks-table thead th {
   background-color: #f8f9fa;
   font-weight: 600;
   color: #333;
   text-transform: uppercase;
   font-size: 0.85em;
+  border-bottom: 2px solid #e6e6e6;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  white-space: nowrap;
+  padding: 12px 15px;
 }
 
+/* Body */
 .tasks-table td {
+  padding: 12px 15px;
   color: #555;
-  font-size: 0.9em;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
+/* Hover & Zebra striping */
 .tasks-table tbody tr:hover {
-  background-color: #f0f2f5;
+  background-color: #f7f9fb;
+  transition: background-color 0.2s ease;
 }
 
-/* Status Tags (Similar to User Type Tags) */
-.status-tag {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 5px;
-  font-size: 0.8em;
-  font-weight: bold;
-  text-align: center;
+.tasks-table tbody tr:nth-child(even) {
+  background-color: #fcfcfc;
 }
 
-.status-tag.open {
-  background-color: #fff3e0; /* Light orange/yellow */
-  color: #ff9800; /* Darker orange/yellow */
-}
-/* Add other status colors if you have them (e.g., .status-tag.completed, .status-tag.in-progress) */
-
-
-/* Edit Button (Reused style, ensure it's in a common CSS or copied) */
+/* ===== Edit Button ===== */
 .edit-button {
   background: none;
   border: none;
@@ -110,64 +173,215 @@
   background-color: #e9f5ff;
 }
 
-/* Pagination (Reused style, ensure it's in a common CSS or copied) */
-.table-pagination {
+/* ===== Scrollbar Styling ===== */
+.tasks-table-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.tasks-table-scroll::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 10px;
+}
+
+.tasks-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+/* ===== Popup Overlay ===== */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.popup {
+  background: #fff;
+  border-radius: 12px;
+  width: 420px;
+  max-width: 90%;
+  padding: 20px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.popup-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.popup-title {
+  margin: 0;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #333;
+}
+
+.popup-close {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+  color: #666;
+}
+
+.popup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popup-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.popup-input,
+.popup-select,
+.popup-textarea {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
   font-size: 0.9em;
   color: #555;
-  padding-top: 15px;
-  border-top: 1px solid #eee;
 }
 
-.rows-per-page select {
-  padding: 5px 10px;
-  border-radius: 5px;
-  border: 1px solid #ddd;
-  margin-left: 10px;
-  background-color: #fff;
+.popup-textarea {
+  resize: vertical;
+  min-height: 80px;
 }
 
-.pagination-controls button {
+.popup-error {
+  color: red;
+  font-size: 0.85em;
+}
+
+.popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
   background-color: #007bff;
   color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  margin-left: 8px;
-  transition: background-color 0.2s ease;
 }
 
-.pagination-controls button:hover {
+.btn-primary:hover {
   background-color: #0056b3;
 }
 
-/* Responsive Adjustments (Add specific adjustments for this page if needed) */
+.btn-ghost {
+  background-color: transparent;
+  color: #555;
+}
+
+.btn-ghost:hover {
+  background-color: #f0f0f0;
+}
+
+/* ===== Responsive Adjustments ===== */
 @media (max-width: 768px) {
-  .table-filters {
-    flex-direction: column;
-    gap: 10px;
-    align-items: stretch;
+  .main-content {
+    padding: 15px;
+  }
+
+  .tasks-table-section {
+    padding: 15px;
+  }
+
+  .tasks-table thead th,
+  .tasks-table td {
+    padding: 10px;
+    font-size: 0.85em;
   }
 
   .filter-input {
     width: 100%;
   }
 
-  .action-header {
-    width: 100%;
-    text-align: left;
+  .table-filters {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .table-pagination {
+  .main-header {
     flex-direction: column;
+    align-items: flex-start;
     gap: 10px;
   }
 
-  .pagination-controls button {
-    margin-left: 0;
-    margin-right: 8px;
+  .header-right {
+    width: 100%;
+    justify-content: flex-end;
   }
+}
+/* ===== Filter Row (matches SubmissionsPage) ===== */
+.tasks-filter-row {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px 0 20px 0;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.filter-box {
+  flex: 1;
+  min-width: 180px;
+  height: 40px;
+  padding: 0 15px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background-color: #fff;
+  font-size: 0.9rem;
+  color: #333;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.filter-box::placeholder {
+  color: #999;
+}
+
+.filter-box:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+}
+
+/* Makes inputs sit on same row like Submissions */
+@media (min-width: 768px) {
+  .tasks-filter-row {
+    justify-content: flex-start;
+  }
+}
+
+/* Keep white rounded card look */
+.tasks-table-section {
+  background-color: #fff;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
