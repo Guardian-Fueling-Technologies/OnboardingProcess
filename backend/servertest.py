@@ -379,7 +379,7 @@ def update_profile(
         traceback.print_exc()
         return False
 
-def insert_profile( display_name: str, email: str, role: str, edited_by: str, createdTime: str, edit_time: str, password: str, status: str, role_id: Optional[uuid] = None, env: str = "dev" ) -> bool:
+def insert_profile( display_name: str, email: str, role: str, edited_by: str, createdTime: str, edit_time: str, password: str, status: str, role_id: Optional[uuid.UUID] = None, env: str = "dev" ) -> bool:
     """Insert a new role row (audit table semantics). Skip role_id if None."""
     try:
         if not edit_time:
